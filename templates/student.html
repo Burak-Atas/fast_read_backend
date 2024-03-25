@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <style>
+        .nav{
+            width: 100%;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: end;
+        }
+        .left_nav{
+            width: 300px;
+            height: 100vh;
+            overflow: auto;
+        }
+
+    </style>
+</head>
+<body>
+    
+    <div class="container">
+        <div class="nav">
+    <div class="name"></div>
+            
+        </div>
+        <div class="left_nav">
+            <div class="logo">
+                <img >
+            </div>
+            <div class="days">
+                <ul class='days_group'>
+                    <li>
+                        <a>1. gün</a>
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+
+                    </li>
+                    <li>
+                        <a>1. gün</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="content">
+
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Sayfa yüklendiğinde yapılacak işlemler
+            fetch("http://localhost:5000/student", {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "token": "TOKEN_BURAYA_GELECEK"
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json().then(data=>{
+                        
+                    });
+                }
+                throw new Error("Network response was not ok.");
+            })
+            .then(data => {
+                // Gelen veriyi işle
+                console.log(data);
+                // Örnek olarak, gelen veriyi localStorage'a da kaydet
+                window.localStorage.setItem("responseDate", JSON.stringify(data));
+                // HTML içindeki bir elemente veriyi atama
+                var nameElement = document.querySelector(".name");
+                nameElement.textContent = data.name;
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+            });
+        });
+
+        var responseData = window.localStorage.getItem("responseDate");
+
+        // Eğer veri varsa ve boş değilse işleme devam et
+        if (responseData) {
+            try {
+                // JSON formatındaki veriyi parse et
+                var response = JSON.parse(responseData);
+
+                // İlgili HTML elementine veriyi ekle
+                var nameElement = document.querySelector(".name");
+                nameElement.textContent = response.name; // Örnek olarak verinin "name" özelliğini alıyoruz
+            } catch (error) {
+                console.error("Error parsing JSON:", error);
+            }
+        } else {
+            console.error("No data found in localStorage.");
+        }
+    </script>
+</body>
+</html>

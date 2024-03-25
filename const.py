@@ -1,0 +1,2 @@
+visited = "VISITED"
+teacher = "TEACHER"
