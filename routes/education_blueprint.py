@@ -2,10 +2,21 @@ from flask import Blueprint, request, jsonify, g
 from db.db import MongoDB
 from dotenv import dotenv_values
 import const
+from db.db import MongoDB
+from jwtgenerate import JWT_Token
+from model.model import Story,Egzersiz,User,Video
+import datetime
+from bson import ObjectId
+import os
+
 
 env_values = dotenv_values()
 db_url = env_values.get("DATABASE_URL")
 db_name = env_values.get("DATABASE_NAME")
+
+
+userId = 0
+
 
 education_blueprint = Blueprint('education_blueprint', __name__)
 
@@ -20,14 +31,31 @@ def teach():
     content = request.get_json()
     if content is None or "username" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
-    
-    name = content["username"]
+    username = content["username"]
     password = content["password"]
     
-    # Veritabanı işlemleri - Eğitim verme işlemi
-    
-    return jsonify({"username": name, "password": password}), 200
+    return jsonify({"username": username, "password": password}), 200
 
+
+"""
+    KULLANICI İŞLEMLERİ 
+"""
+@education_blueprint.route("/user", methods=["GET"])
+def user():
+    db = MongoDB(url=db_url, db_name=db_name)
+    users_cursor = db.find_many(collection_name="users", query=None)
+    
+    # Convert Cursor object to a list of dictionaries
+    users = [dict(user) for user in users_cursor]
+    
+    # Convert ObjectId to string in each dictionary
+    for user in users:
+        user['_id'] = str(user['_id'])
+    
+    # Close the cursor
+    users_cursor.close()
+    
+    return jsonify(users), 200
 
 @education_blueprint.route("/adduser", methods=["POST"])
 def add_user():
@@ -35,17 +63,39 @@ def add_user():
     if content is None or "username" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
     
-    name = content["username"]
+    username = content["username"]
     password = content["password"]
+    name = content["name"]
+    phoneNumber = content["number"]
+    
     
     # Veritabanı işlemleri - Kullanıcı ekleme işlemi
+    db = MongoDB(db_name=db_name, url=db_url)
     
-    return jsonify({"username": name, "password": password}), 200
+    users = db.find_one(collection_name="users",query={"username":username})
+    
+    if type(users)==dict:
+        return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
+    
+    
+    token = JWT_Token()
+    userToken = token.generate_token(user_id=None,name=name,role=const.student,username=username)
+    userType = const.student
+    basari_puani = 0
+    createdTime = datetime.datetime.now()
 
+    new_id = ObjectId()
+
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken).__dict__
+    
+    db.insert_one(collection_name="users",data=usr)
+    
+    return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":"token"}), 200
 
 @education_blueprint.route("/deluser/<string:name>", methods=["DELETE"])
 def del_user(name):
-    query = {"username": name}
+    print(name)
+    query = {"user_name": name}
     db = MongoDB(db_name=db_name, url=db_url)
     deleted_user = db.delete_one("users", query=query)
 
@@ -54,6 +104,13 @@ def del_user(name):
     else:
         return jsonify({"error": "Kullanıcı bulunamadı"}), 404
 
+@education_blueprint.route("/alldeluser",methods=["DELETE"])
+def all_del_user():
+    db = MongoDB(url=db_url,db_name=db_name)
+
+    db.delete_many(collection_name="users",query={})
+    
+    return jsonify(),200
 
 @education_blueprint.route("/updateuser/<string:old_name>", methods=["PUT"])
 def update_user(old_name):
@@ -80,6 +137,18 @@ def update_user(old_name):
         return jsonify({"error": "Kullanıcı bulunamadı"}), 404
 
 
+@education_blueprint.route("/user/countuser",methods=["GET"])
+def count_user():
+    db = MongoDB(url=db_url,db_name=db_name)
+    count_document = db.count_documents(collection_name="users",query={})
+    
+    return jsonify({"kullanici_sayisi":count_document})
+    
+    
+"""
+    KULLANICI İŞLEMLERİ TAMAMLANDI
+    (UPDATEUSER DENEMESİ YAPILMADI)
+"""
 
 
 @education_blueprint.route("/addeducation",methods=["POST"])
@@ -94,4 +163,80 @@ def add_education():
     db = MongoDB(url=db_url,db_name=db_name)
     db.insert_one("egzersiz",)
     
+
+
+"""
+    VİDEO İŞLMELERİ
+"""
+@education_blueprint.route("/uploadvideo",methods=["POST"])
+def upload_video():
+    if 'file' not in request.files:
+        return 'No file part'
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file'
+    if file:
+        filename = file.filename
+        file.save(os.path.join(education_blueprint.config['UPLOAD_FOLDER'], filename))
+        
+        
+        return jsonify({"message":"başarılı bir şekilde dosya yüklendi"}),200   
     
+@education_blueprint.route("/videos",methods=["GET"])
+def videos():
+    db = MongoDB(url=db_url, db_name=db_name)
+    videos_curser = db.find_many(collection_name="videos", query=None)
+    
+    # Convert Cursor object to a list of dictionaries
+    videos = [dict(video) for user in videos_curser]
+    
+    # Convert ObjectId to string in each dictionary
+    for video in videos:
+        video['_id'] = str(video['_id'])
+    
+    # Close the cursor
+    videos_curser.close()
+    
+    return jsonify(videos), 200
+
+@education_blueprint.route("/video/<string:name>",methods=["GET"])
+def get_video(name):
+    query = {"video_name":name}
+       
+    db = MongoDB(url=db_url,db_name=db_name)
+    videos = db.find_one(collection_name="videos",query=query)
+
+    if type(videos)!=dict:
+        return jsonify({"error":"video bulunamadı"}),400
+
+    return jsonify({"video_url":videos["video_url"]}),200
+
+@education_blueprint.route("/video/delvideo", methods=["DELETE"])
+def del_video():
+    content = request.get_json()
+    if "video_name" not in content:
+        return jsonify({"error": "Video adı belirtilmedi."}), 400
+    
+    video_name = content["video_name"]
+    db = MongoDB(url=db_url, db_name=db_name)
+    
+    deleted_video = db.delete_one(collection_name="videos", query={"video_name": video_name})
+    db.close()
+    
+    if deleted_video.deleted_count == 1:
+        return jsonify({"message": "Video başarıyla silindi."}), 200
+    else:
+        return jsonify({"error": "Belirtilen video bulunamadı veya zaten silinmiş olabilir."}), 404
+
+"""
+    VİDEO İŞLMELERİ BİTTİ
+"""  
+
+
+
+"""
+    KULLANICI BAZLI  İŞLMELER
+"""  
+
+
+

@@ -30,9 +30,12 @@ class MongoDB:
         result = collection.delete_one(query)
         return result.deleted_count
 
+    def delete_many(self, collection_name, query):
+        collection = self.db[collection_name]
+        result = collection.delete_many(query)
+        return result.deleted_count
+        
     def count_documents(self, collection_name, query):
         collection = self.db[collection_name]
         count = collection.count_documents(query)
         return count
-    
-

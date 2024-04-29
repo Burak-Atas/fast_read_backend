@@ -1,2 +1,3 @@
-visited = "VISITED"
+student = "STUDENT"
 teacher = "TEACHER"
+

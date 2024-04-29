@@ -1,5 +1,5 @@
 class User:
-    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi):
+    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi,token):
         self._id = _id
         self.user_name = user_name
         self.password = password
@@ -8,6 +8,7 @@ class User:
         self.tamamlanan_gun = 0
         self.user_type = user_type
         self.kayit_tarihi = kayit_tarihi
+        self.token = token
         
         
     def get_id(self):
@@ -49,7 +50,14 @@ class User:
     def set_tamamlanan_gun(self,i):
         return self.tamamlanan_gun + 1 
     
+     
+    def get_Token(self):
+        return self._id
 
+    def set_Token(self, token):
+        self.token = token
+        
+             
 class Egzersiz:
     def __init__(self, _id, name, text, egzersiz_puanı, egzersiz_seviyesi):
         self._id = _id
@@ -88,8 +96,7 @@ class Egzersiz:
     
     def set_egzersiz_seviyesi(self, egzersiz_seviyesi):
         self.egzersiz_seviyesi = egzersiz_seviyesi
-      
-        
+          
 class Story:
     def __init__(self,_id,text,seviye) :
         self._id = _id
@@ -107,4 +114,12 @@ class Story:
     
     def set_text(self, text):
         self.text = text
+    
+    
+    
+class Video:
+    def __init__(self,video_name,video_url,description):
+        self.video_name = video_name
+        self.description = description
+        self.video_url = video_url
     
