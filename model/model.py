@@ -9,6 +9,7 @@ class User:
         self.user_type = user_type
         self.kayit_tarihi = kayit_tarihi
         self.token = token
+        self.user_type =user_type
         
         
     def get_id(self):
@@ -122,4 +123,13 @@ class Video:
         self.video_name = video_name
         self.description = description
         self.video_url = video_url
-    
+
+
+
+class Messages:
+    def __init__(self, sender, receiver, sender_time,cender_date, read,messages):
+        self.sender = sender
+        self.receiver = receiver
+        self.sender_time = sender_time
+        self.read = read
+        self.messages = messages

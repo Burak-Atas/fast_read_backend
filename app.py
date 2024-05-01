@@ -32,22 +32,18 @@ def login():
     if content is None:
         return jsonify({"error":"eksik bilgi doldurunuz"})
     
-    
-     
     if "username" not in content or "password" not in content:
         return jsonify({"error": "kullanıcı adı yada şifre eksik"})
     
     user_name = content["username"]
-    password = content["password"]
-    
-    
+    password = content["password"]    
     query = {
-        "username":user_name
+        "user_name":user_name
     }
 
     db = MongoDB(db_name=db_name,url=db_url)
     user = db.find_one("users",query=query)
-    
+    print(user)
     
     if type(user)!=dict:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
@@ -63,13 +59,15 @@ def auth_middleware():
         token = request.headers.get("token")
         
         if token != None:
-            decode_token= token_handler.decode_token(token=token)    
+            decode_token= token_handler.decode_token(token=token)[0]   
+            if type(decode_token)!=dict:
+                return jsonify({"error":"tekrar giriş yapınız",}),400
             g.user_type = decode_token["role"]
             g.token = token
-            g.user_name = decode_token("username")
+            g.user_name = decode_token["user_name"]
         else:
             g.user_type = const.teacher
-#            return jsonify({"error":"yetkisiz erişim"})
+          #  return jsonify({"error":"yetkisiz erişim"})
 
 
 

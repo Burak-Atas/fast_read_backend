@@ -4,7 +4,7 @@ from dotenv import dotenv_values
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
-from model.model import Story,Egzersiz,User,Video
+from model.model import Story,Egzersiz,User,Video,Messages
 import datetime
 from bson import ObjectId
 import os
@@ -72,14 +72,14 @@ def add_user():
     # Veritabanı işlemleri - Kullanıcı ekleme işlemi
     db = MongoDB(db_name=db_name, url=db_url)
     
-    users = db.find_one(collection_name="users",query={"username":username})
-    
+    users = db.find_one(collection_name="users",query={"user_name":username})
+    print(users)
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
     
     token = JWT_Token()
-    userToken = token.generate_token(user_id=None,name=name,role=const.student,username=username)
+    userToken = token.generate_token(user_id=None,name=name,role=const.student,user_name=username)
     userType = const.student
     basari_puani = 0
     createdTime = datetime.datetime.now()
@@ -90,7 +90,7 @@ def add_user():
     
     db.insert_one(collection_name="users",data=usr)
     
-    return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":"token"}), 200
+    return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":userToken}), 200
 
 @education_blueprint.route("/deluser/<string:name>", methods=["DELETE"])
 def del_user(name):
