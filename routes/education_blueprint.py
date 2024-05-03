@@ -5,7 +5,7 @@ import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
 from model.model import Story,Egzersiz,Process,User,Video,Messages
-import datetime
+from datetime import datetime, timedelta
 from bson import ObjectId
 import os
 
@@ -81,17 +81,17 @@ def add_user():
     userToken = token.generate_token(user_id=None,name=name,role=const.student,user_name=username,level=level)
     userType = const.student
     basari_puani = 0
-    createdTime = datetime.datetime.now()
     
-
+    
+    createdTime = datetime.now()
     date = createdTime.strftime("%Y-%m-%d")
     time = createdTime.strftime("%H:%M:%S")
-    
+    newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
 
     new_id = ObjectId()
 
     usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level).__dict__
-    usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=date).__dict__
+    usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
     return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":userToken}), 200
@@ -239,6 +239,38 @@ def del_video():
     VİDEO İŞLMELERİ BİTTİ
 """  
 
+
+
+"""
+    KULLANICI BAZLI  İŞLMELER
+"""  
+
+
+@education_blueprint.route("/sendmessage",methods=["POST"])
+def send_message():
+    content = request.get_json()
+    if "messages" not in content:
+        return jsonify({"error":"hatalı işlem yaptınız"}),400
+    
+    messages = content["messages"]
+    db = MongoDB(url=db_url,db_name=db_name)   
+    current_datetime = datetime.now()
+    current_date = current_datetime.date()
+    current_time = current_datetime.time()
+    
+    data = Messages(sender=g.user_name,receiver=const.admin,read=False,messages = messages,cender_date=current_date,sender_time=current_time).__dict__
+    db.insert_one(collection_name="messages",data=data)
+    
+    return jsonify({"messages":"mesajınız gönderildi"}),200
+    
+    
+@education_blueprint.route("/delmessage",methods=["POST"])
+def del_message():
+    user_name = g.user_name
+    content = request.get_json()
+    
+    message_id =content["message_id"]
+    
 
 
 """

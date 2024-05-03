@@ -2,7 +2,7 @@ from flask import Blueprint,request,jsonify,g
 
 student_blueprint = Blueprint('student', __name__)
 from db.db import MongoDB
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from model.model import Messages
 import const
@@ -48,12 +48,14 @@ def hello():
 @student_blueprint.route("/<string:day>", methods=["GET"])
 def gune_ait_egzersiz(day):
     level = g.level
+    user_name = g.user_name
     db = MongoDB(url=db_url, db_name=db_name)
     days = db.find_one(collection_name="days", query={"day": day,"level":level})  
-      
+    process = db.find_one(collection_name="process", query={"user_name":user_name}) 
+    
     if type(days) != dict:
         return jsonify({"error": "gün bulunamadı"}), 400    
-    return jsonify({"egzersiz": days["exercise"]}), 200
+    return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
 
 
 
@@ -65,8 +67,8 @@ def egzersiz(day,name):
 
     control  = db.find_one("process",query=query)    
     
-    if day!= control["day"]:
-        return jsonify({"error":"tamamlanması gereken gün :"+control["day"]})
+    if day[-1] > control["day"][-1]:
+        return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
     
     exercise = control["now_exercise"]
     print(day,exercise)
@@ -74,8 +76,9 @@ def egzersiz(day,name):
     if type(now_exerscise)!=dict:
         return jsonify({"error":"egzersiz bulunamadı"}),400
     
-    if name != now_exerscise["name"]:
-        return jsonify({"error":"tamamlanması gereken egzersiz"+now_exerscise["name"]}),400    
+    if day==control["day"]:
+        if name != now_exerscise["name"]:
+            return jsonify({"error":"tamamlanması gereken egzersiz :"+now_exerscise["name"]}),400    
     
     speeds = now_exerscise["speed"]
     #text = now_exerscise["text"]
@@ -107,6 +110,7 @@ def egzersiz_bitti():
                 return jsonify({"error": "Hatalı işlem yaptınız"}),400
             complated_day = found_user.get("tamamlanan_gun")
             complated_day+=1
+            
             new_data = {"tamamlanan_gun":complated_day}
             db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
             db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
@@ -117,7 +121,18 @@ def egzersiz_bitti():
         print(new_next_exercise)
         db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
         return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200
-    return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
+    
+    createdTime = datetime.now()
+    date = createdTime.strftime("%Y-%m-%d")
+    
+    if date==process["next_day_date"]:
+        if now_exercise>=int(len_exesice):
+            newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
+            db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":"day2","okey":False})
+            return jsonify({"message":"yeni güne geçebilirsiniz"}),200
+            
+    
+    return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200
     
     
         
@@ -140,29 +155,4 @@ def all_message():
     
     
 
-@student_blueprint.route("/sendmessage",methods=["POST"])
-def send_message():
-    content = request.get_json()
-    if "messages" not in content:
-        return jsonify({"error":"hatalı işlem yaptınız"}),400
-    
-    messages = content["messages"]
-    db = MongoDB(url=db_url,db_name=db_name)   
-    current_datetime = datetime.now()
-    current_date = current_datetime.date()
-    current_time = current_datetime.time()
-    
-    data = Messages(sender=g.user_name,receiver=const.admin,read=False,messages = messages,cender_date=current_date,sender_time=current_time).__dict__
-    db.insert_one(collection_name="messages",data=data)
-    
-    return jsonify({"messages":"mesajınız gönderildi"}),200
-    
-    
-@student_blueprint.route("/delmessage",methods=["POST"])
-def del_message():
-    user_name = g.user_name
-    content = request.get_json()
-    
-    message_id =content.get("message_id")
-    
     
