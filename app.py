@@ -53,6 +53,7 @@ def login():
     
     return jsonify({"message":"giriş başarılı","token":user["token"],"name":user["name"]}),200
     
+    
 @app.before_request
 def auth_middleware():
     if request.path != "/login" and request.path != "/contact":
