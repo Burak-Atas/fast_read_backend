@@ -51,7 +51,7 @@ def login():
     if user["password"]!=password:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
     
-    return jsonify({"message":"giriş başarılı","token":user["token"]}),200
+    return jsonify({"message":"giriş başarılı","token":user["token"],"name":user["name"]}),200
     
 @app.before_request
 def auth_middleware():
@@ -65,6 +65,7 @@ def auth_middleware():
             g.user_type = decode_token["role"]
             g.token = token
             g.user_name = decode_token["user_name"]
+            g.level = decode_token["level"]
         else:
             g.user_type = const.teacher
           #  return jsonify({"error":"yetkisiz erişim"})

@@ -6,10 +6,10 @@ class JWT_Token():
     secret_key = '2889b2b99b0235aff49c4246e857fd7396cc88fd1b38718b1f4d8de6807fa95b'
     algorithm = "HS256"
 
-    def generate_token(self, user_id, role, name, user_name):
+    def generate_token(self, user_id, role, name, user_name,level):
         token_exp = datetime.utcnow() + timedelta(hours=24)
         secret_key = self.secret_key
-        token = jwt.encode({'user_id': user_id, 'role': role,"name":name, 'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
+        token = jwt.encode({'user_id': user_id, 'role': role,"name":name, "level":level,'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
 
         return token
 

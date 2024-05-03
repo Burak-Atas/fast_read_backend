@@ -4,7 +4,7 @@ from dotenv import dotenv_values
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
-from model.model import Story,Egzersiz,User,Video,Messages
+from model.model import Story,Egzersiz,Process,User,Video,Messages
 import datetime
 from bson import ObjectId
 import os
@@ -67,9 +67,9 @@ def add_user():
     password = content["password"]
     name = content["name"]
     phoneNumber = content["number"]
+    level = content["level"]
     
-    
-    # Veritabanı işlemleri - Kullanıcı ekleme işlemi
+      
     db = MongoDB(db_name=db_name, url=db_url)
     
     users = db.find_one(collection_name="users",query={"user_name":username})
@@ -77,20 +77,22 @@ def add_user():
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
-    
     token = JWT_Token()
-    userToken = token.generate_token(user_id=None,name=name,role=const.student,user_name=username)
+    userToken = token.generate_token(user_id=None,name=name,role=const.student,user_name=username,level=level)
     userType = const.student
     basari_puani = 0
     createdTime = datetime.datetime.now()
+    
+    
 
     new_id = ObjectId()
 
-    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken).__dict__
-    
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level).__dict__
+    usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=createdTime).__dict__
     db.insert_one(collection_name="users",data=usr)
-    
+    db.insert_one(collection_name="process",data=usr_proccess)
     return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":userToken}), 200
+
 
 @education_blueprint.route("/deluser/<string:name>", methods=["DELETE"])
 def del_user(name):
@@ -104,6 +106,7 @@ def del_user(name):
     else:
         return jsonify({"error": "Kullanıcı bulunamadı"}), 404
 
+
 @education_blueprint.route("/alldeluser",methods=["DELETE"])
 def all_del_user():
     db = MongoDB(url=db_url,db_name=db_name)
@@ -111,6 +114,7 @@ def all_del_user():
     db.delete_many(collection_name="users",query={})
     
     return jsonify(),200
+
 
 @education_blueprint.route("/updateuser/<string:old_name>", methods=["PUT"])
 def update_user(old_name):
