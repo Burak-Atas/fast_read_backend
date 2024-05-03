@@ -51,10 +51,16 @@ def gune_ait_egzersiz(day):
     user_name = g.user_name
     db = MongoDB(url=db_url, db_name=db_name)
     days = db.find_one(collection_name="days", query={"day": day,"level":level})  
-    process = db.find_one(collection_name="process", query={"user_name":user_name}) 
-    
     if type(days) != dict:
-        return jsonify({"error": "gün bulunamadı"}), 400    
+        return jsonify({"error": "gün bulunamadı"}), 400  
+    process = db.find_one(collection_name="process", query={"user_name":user_name}) 
+    if type(process) != dict:
+        return jsonify({"error": "hatalı işlem yaptınız"}), 400  
+    if day!= process["day"]:
+        return jsonify({"egzersiz": days["exercise"],"order":-1}), 200
+    
+    
+     
     return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
 
 
