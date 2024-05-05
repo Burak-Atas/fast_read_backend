@@ -26,12 +26,15 @@ def hello():
     user_name = g.user_name 
     
     db = MongoDB(url=db_url,db_name=db_name)
-    
     user= db.find_one(collection_name="users",query={"user_name":user_name})
     if type(user)!=dict:
         return jsonify({"error":"lütfen tekrar giriş yapın"}),400
     
+    
+    
     process= db.find_one(collection_name="process",query={"user_name":user_name})
+    
+    
     
     if type(process)!=dict:
         return jsonify({"error":"lütfen tekrar giriş yapın"}),400
@@ -40,9 +43,20 @@ def hello():
     user_name = user["user_name"]
     user_score = user["basari_puani"]
     process_order = process["now_exercise"]
+    query_days= str(process_order+1)
     
+    days = db.find_one(collection_name="days",query={"day":"day"+query_days})
+    
+    len_exesice = len(days["exercise"])
+    if type(days)!=dict:
+        return jsonify({"error":"lütfen tekrar giriş yapın"}),400
+        
+        
     complated_day = user["tamamlanan_gun"]
-    return jsonify({"user_name":user_name,"user_score":user_score,"complated_user":complated_day,"process_order":process_order}),200
+    return jsonify({"user_name":user_name,"user_score":user_score,"complated_user":complated_day,"process_order":process_order,"all_exercise":len_exesice}),200
+
+
+
 
 
 @student_blueprint.route("/<string:day>", methods=["GET"])
@@ -57,10 +71,8 @@ def gune_ait_egzersiz(day):
     if type(process) != dict:
         return jsonify({"error": "hatalı işlem yaptınız"}), 400  
     if day!= process["day"]:
-        return jsonify({"egzersiz": days["exercise"],"order":-1}), 200
+        return jsonify({"egzersiz": days["exercise"],"order":-1}), 200 
     
-    
-     
     return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
 
 
@@ -145,20 +157,22 @@ def egzersiz_bitti():
 """
 //kullanıcı iletişim işlemleri
 """
+    
+from bson import json_util
 
-@student_blueprint.route("/allmessage", methods=["POST"])
+@student_blueprint.route("/allmessages", methods=["GET"])
 def all_message():
-
-    user_name = g.user_name
     db = MongoDB(url=db_url, db_name=db_name)
-    messages_cursor = db.find_many(collection_name="messages", query={"user_name": user_name})    
+    messages_cursor = db.find_many(collection_name="messages", query={})    
     messages = list(messages_cursor)
     messages_cursor.close()
     if messages:
-        return jsonify(messages), 200
+        # Convert ObjectId to string for each message
+        for message in messages:
+            message['_id'] = str(message['_id'])
+        return json_util.dumps(messages), 200
     else:
         return jsonify({"message": "Henüz bir mesajınız yok"}), 404
-    
-    
+
 
     

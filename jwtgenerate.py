@@ -7,7 +7,7 @@ class JWT_Token():
     algorithm = "HS256"
 
     def generate_token(self, user_id, role, name, user_name,level):
-        token_exp = datetime.utcnow() + timedelta(hours=24)
+        token_exp = datetime.utcnow() + timedelta(days=31)
         secret_key = self.secret_key
         token = jwt.encode({'user_id': user_id, 'role': role,"name":name, "level":level,'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
 
