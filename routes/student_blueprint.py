@@ -42,10 +42,9 @@ def hello():
     
     user_name = user["user_name"]
     user_score = user["basari_puani"]
-    process_order = process["now_exercise"]
-    query_days= str(process_order+1)
+    process_order = process["day"]
     
-    days = db.find_one(collection_name="days",query={"day":"day"+query_days})
+    days = db.find_one(collection_name="days",query={"day":process_order})
     
     len_exesice = len(days["exercise"])
     if type(days)!=dict:
