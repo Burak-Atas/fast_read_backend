@@ -52,7 +52,7 @@ def hello():
         
         
     complated_day = user["tamamlanan_gun"]
-    return jsonify({"user_name":user_name,"user_score":user_score,"complated_user":complated_day,"process_order":process_order,"all_exercise":len_exesice}),200
+    return jsonify({"user_name":user_name,"user_score":user_score,"complated_days":complated_day,"process_order":process_order,"all_exercise":len_exesice}),200
 
 
 
