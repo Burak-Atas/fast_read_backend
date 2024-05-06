@@ -43,6 +43,7 @@ def hello():
     user_name = user["user_name"]
     user_score = user["basari_puani"]
     process_order = process["day"]
+    process_order_exercise = process["now_exercise"]
     
     days = db.find_one(collection_name="days",query={"day":process_order})
     
@@ -52,7 +53,7 @@ def hello():
         
         
     complated_day = user["tamamlanan_gun"]
-    return jsonify({"user_name":user_name,"user_score":user_score,"complated_days":complated_day,"process_order":process_order,"all_exercise":len_exesice}),200
+    return jsonify({"user_name":user_name,"user_score":user_score,"complated_days":complated_day,"process_order":process_order_exercise,"all_exercise":len_exesice}),200
 
 
 

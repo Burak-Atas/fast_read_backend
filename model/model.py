@@ -92,9 +92,10 @@ class Messages:
 
 
 class Process:
-    def __init__(self,user_name,next_exercise,now_exercise,day,next_day_date):
+    def __init__(self,user_name,next_exercise,now_exercise,day,next_day_date,okey):
         self.user_name = user_name
         self.next_exercise = next_exercise
         self.now_exercise= now_exercise
         self.day = day
         self.next_day_date = next_day_date
+        self.okey = okey
