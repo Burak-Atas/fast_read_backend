@@ -108,7 +108,7 @@ def egzersiz(day,name):
 
 
 
-@student_blueprint.route("/egzersizbitti", methods=["POST"])
+@student_blueprint.route("/exerciseisover", methods=["POST"])
 def egzersiz_bitti():
     user_name = g.user_name 
     db = MongoDB(url=db_url, db_name=db_name)
