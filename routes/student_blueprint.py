@@ -102,6 +102,7 @@ def egzersiz(day,name):
     #text = now_exerscise["text"]
     #complated_time = now_exerscise["time"]
     #return jsonify({"text":text,"speed":speed,"complated_time":complated_time})
+    #datas = {"speed":data[exercise-1]["speed"][exercise-1],"text":data[exercise-1]["text"][exercise-1]}
     return jsonify(data),200
 
 
