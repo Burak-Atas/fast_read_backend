@@ -40,36 +40,37 @@ def teach():
 """
     KULLANICI İŞLEMLERİ 
 """
+
 @education_blueprint.route("/user", methods=["GET"])
 def user():
     db = MongoDB(url=db_url, db_name=db_name)
     users_cursor = db.find_many(collection_name="users", query=None)
-    
-    # Convert Cursor object to a list of dictionaries
     users = [dict(user) for user in users_cursor]
     
-    # Convert ObjectId to string in each dictionary
+    # Remove _id field from each dictionary
     for user in users:
-        user['_id'] = str(user['_id'])
+        del user['_id']
+        del user['token']
+        del user["user_type"]
     
-    # Close the cursor
     users_cursor.close()
     
     return jsonify(users), 200
 
+
 @education_blueprint.route("/adduser", methods=["POST"])
 def add_user():
     content = request.get_json()
-    if content is None or "username" not in content or "password" not in content:
+    if content is None or "user_name" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
     
-    username = content["username"]
+    username = content["user_name"]
     password = content["password"]
     name = content["name"]
-    phoneNumber = content["number"]
+    phoneNumber = content["phone_number"]
     level = content["level"]
     
-      
+    
     db = MongoDB(db_name=db_name, url=db_url)
     
     users = db.find_one(collection_name="users",query={"user_name":username})
@@ -94,7 +95,7 @@ def add_user():
     usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate,okey=False).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
-    return jsonify({"message":"kulalnıcı eklendi","username": username, "password": password,"token":userToken}), 200
+    return jsonify({"message":"kullanıcı eklendi","username": username, "password": password,"token":userToken}), 200
 
 
 @education_blueprint.route("/deluser/<string:name>", methods=["DELETE"])
@@ -175,7 +176,7 @@ def add_education():
 """
     VİDEO İŞLMELERİ
 """
-@education_blueprint.route("/uploadvideo",methods=["POST"])
+@education_blueprint.route("/addvideo",methods=["POST"])
 def upload_video():
     if 'file' not in request.files:
         return 'No file part'

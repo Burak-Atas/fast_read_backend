@@ -98,12 +98,11 @@ def egzersiz(day,name):
         if name != now_exerscise["name"]:
             return jsonify({"error":"tamamlanması gereken egzersiz :"+now_exerscise["name"]}),400    
     
-    speeds = now_exerscise["speed"]
+    data = now_exerscise["data"]
     #text = now_exerscise["text"]
     #complated_time = now_exerscise["time"]
-    speed = speeds[int(day[-1])-1]
     #return jsonify({"text":text,"speed":speed,"complated_time":complated_time})
-    return jsonify({"speed":speed}),200
+    return jsonify(data),200
 
 
 
@@ -118,7 +117,10 @@ def egzersiz_bitti():
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
     
     now_exercise = process.get("next_exercise") 
-    
+    new_data = {"tamamlanan_gun":complated_day}
+    db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
+    db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
+              
     if process["okey"]==False:
         print(now_exercise)
         print("eln"+len_exesice)
@@ -129,9 +131,6 @@ def egzersiz_bitti():
             complated_day = found_user.get("tamamlanan_gun")
             complated_day+=1
             
-            new_data = {"tamamlanan_gun":complated_day}
-            db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
-            db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
             
             return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
     
