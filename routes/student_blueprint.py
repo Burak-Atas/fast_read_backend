@@ -118,10 +118,9 @@ def egzersiz_bitti():
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
     
     now_exercise = process.get("next_exercise") 
-    new_data = {"tamamlanan_gun":complated_day}
-    db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
-    db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
-              
+    new_next_exercise = now_exercise + 1
+    db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
+     
     if process["okey"]==False:
         print(now_exercise)
         print("eln"+len_exesice)
@@ -131,13 +130,13 @@ def egzersiz_bitti():
                 return jsonify({"error": "Hatalı işlem yaptınız"}),400
             complated_day = found_user.get("tamamlanan_gun")
             complated_day+=1
-            
-            
+            new_data = {"tamamlanan_gun":complated_day}
+            db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
+            db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
+                            
             return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
     
-        new_next_exercise = now_exercise + 1
         print(new_next_exercise)
-        db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
         return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200
     
     createdTime = datetime.now()
