@@ -68,7 +68,9 @@ def auth_middleware():
             g.user_name = decode_token["user_name"]
             g.level = decode_token["level"]
         else:
-            g.user_type = const.teacher
+            g.user_type = const.student
+            g.user_name = "elvansurel"
+            
           #  return jsonify({"error":"yetkisiz erişim"})
 
 

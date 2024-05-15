@@ -4,15 +4,19 @@ from dotenv import dotenv_values
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
-from model.model import Story,Egzersiz,Process,User,Video,Messages
+from model.model import Story,Egzersiz,Process,User,Video,Messages,Task
 from datetime import datetime, timedelta
 from bson import ObjectId
 import os
+import uuid
+
 
 
 env_values = dotenv_values()
 db_url = env_values.get("DATABASE_URL")
 db_name = env_values.get("DATABASE_NAME")
+SERVER_IP = env_values.get("SERVER_IP")
+
 
 
 userId = 0
@@ -22,7 +26,7 @@ education_blueprint = Blueprint('education_blueprint', __name__)
 
 @education_blueprint.before_request
 def check_user_type():
-    if g.user_type != const.teacher:
+    if g.user_type != const.student:
         return jsonify({"error": "yetkisiz erişim"}), 403
 
 
@@ -176,35 +180,46 @@ def add_education():
 """
     VİDEO İŞLMELERİ
 """
-@education_blueprint.route("/addvideo",methods=["POST"])
+@education_blueprint.route("/addvideo", methods=["POST"])
 def upload_video():
-    if 'file' not in request.files:
-        return 'No file part'
-    file = request.files['file']
-    if file.filename == '':
-        return 'No selected file'
-    if file:
-        filename = file.filename
-        file.save(os.path.join(education_blueprint.config['UPLOAD_FOLDER'], filename))
-        
-        
-        return jsonify({"message":"başarılı bir şekilde dosya yüklendi"}),200   
+    # Check if the request contains a 'video' part
+    if 'video' not in request.files:
+        return jsonify({"error": "No video part"}), 400
+
+    # Retrieve the uploaded video file
+    video = request.files['video']
+
+    # Check if a file was selected
+    if video.filename == '':
+        return jsonify({"error": "No selected video"}), 400
+
+    unique_id = str(uuid.uuid4())
+
+    if video:
+        filename = video.filename 
+        name = unique_id
+        video.save(os.path.join("static", name))  
+        url =  SERVER_IP+"/static/"+name
+        db = MongoDB(url=db_url,db_name=db_name)
+        db.insert_one(collection_name="videos",data={
+            "name":name,
+            "filename":filename,
+            "url": url
+        })
+
+        # Return a success message along with the filename
+        return jsonify({"message": "Video successfully uploaded", "filename": filename,"name":name,"url":url}), 200
+  
     
 @education_blueprint.route("/videos",methods=["GET"])
 def videos():
     db = MongoDB(url=db_url, db_name=db_name)
     videos_curser = db.find_many(collection_name="videos", query=None)
     
-    # Convert Cursor object to a list of dictionaries
-    videos = [dict(video) for user in videos_curser]
-    
-    # Convert ObjectId to string in each dictionary
+    videos = [dict(video) for video in videos_curser]
     for video in videos:
         video['_id'] = str(video['_id'])
-    
-    # Close the cursor
     videos_curser.close()
-    
     return jsonify(videos), 200
 
 @education_blueprint.route("/video/<string:name>",methods=["GET"])
@@ -219,19 +234,18 @@ def get_video(name):
 
     return jsonify({"video_url":videos["video_url"]}),200
 
-@education_blueprint.route("/video/delvideo", methods=["DELETE"])
+@education_blueprint.route("/delvideo", methods=["DELETE"])
 def del_video():
-    content = request.get_json()
-    if "video_name" not in content:
+    name = request.headers.get("name")
+    
+    if name=="":
         return jsonify({"error": "Video adı belirtilmedi."}), 400
     
-    video_name = content["video_name"]
     db = MongoDB(url=db_url, db_name=db_name)
+    deleted_video = db.delete_one(collection_name="videos", query={"name": name})
+
     
-    deleted_video = db.delete_one(collection_name="videos", query={"video_name": video_name})
-    db.close()
-    
-    if deleted_video.deleted_count == 1:
+    if deleted_video == 1:
         return jsonify({"message": "Video başarıyla silindi."}), 200
     else:
         return jsonify({"error": "Belirtilen video bulunamadı veya zaten silinmiş olabilir."}), 404
@@ -246,33 +260,60 @@ def del_video():
     KULLANICI BAZLI  İŞLMELER
 """  
 
-
 @education_blueprint.route("/sendmessage",methods=["POST"])
 def send_message():
     content = request.get_json()
-    if "messages" not in content:
-        return jsonify({"error":"hatalı işlem yaptınız"}),400
+    print(content)
+    if "content" not in content or "header" not in content:
+        return jsonify({"error":"Hatalı header"}), 400
     
-    messages = content["messages"]
-    db = MongoDB(url=db_url,db_name=db_name)   
+    header = content["header"]
+    messages = content["content"]
+    
     current_datetime = datetime.now()
     current_date = current_datetime.date()
-    current_time = current_datetime.time()
+    current_time_str = current_datetime.strftime("%H:%M:%S")
     
-    data = Messages(sender=g.user_name,receiver=const.admin,read=False,messages = messages,cender_date=current_date,sender_time=current_time).__dict__
-    db.insert_one(collection_name="messages",data=data)
+    db = MongoDB(url=db_url, db_name=db_name)   
     
-    return jsonify({"messages":"mesajınız gönderildi"}),200
+    data = Messages(header=header,sender=g.user_name, receiver=const.admin, content=messages, cender_date=current_date, date=current_time_str).__dict__
     
+    db.insert_one(collection_name="messages", data=data)
     
-@education_blueprint.route("/delmessage",methods=["POST"])
-def del_message():
-    user_name = g.user_name
-    content = request.get_json()
+    return jsonify({"messages":"Mesajınız gönderildi"}), 200
+
+
+@education_blueprint.route("/messages", methods=["GET"])
+def message():
+    db = MongoDB(url=db_url, db_name=db_name)
+    messages_cursor = db.find_many(collection_name="messages", query=None)
+    messages = [dict(msg) for msg in messages_cursor]
     
-    message_id =content["message_id"]
+    for msg in messages:
+        del msg['_id']
+    
+    messages_cursor.close()
+    
+    return jsonify(messages), 200
+
+
     
 
+@education_blueprint.route("/delmessage", methods=["DELETE"])
+def del_message():
+    header = request.headers.get("header")
+    print(header)
+    if header == "":
+        return jsonify({"error": "Hatalı header"}), 400
+
+    db = MongoDB(url=db_url, db_name=db_name)
+
+    res = db.delete_one(collection_name="messages", query={"header": header})
+
+    if res > 0:
+        return jsonify({"message": "Mesaj başarıyla silindi"}), 200
+    else:
+        return jsonify({"error": "Belirtilen başlıkla eşleşen bir mesaj bulunamadı"}), 404
 
 """
     KULLANICI BAZLI  İŞLMELER
@@ -280,3 +321,52 @@ def del_message():
 
 
 
+""" 
+    TAKVİM İŞLEMLERİ
+"""
+@education_blueprint.route("/tasklist",methods=["GET"])
+def calendar():
+    db = MongoDB(db_name=db_name, url=db_url) 
+    task_cursor = db.find_many(collection_name="task", query={"who":g.user_name})
+    print(g.user_name)
+    tasks = [dict(task) for task in task_cursor]
+    
+    for task in tasks:
+        del task['_id']
+    
+    task_cursor.close()
+    
+    return jsonify(tasks), 200
+    
+    
+@education_blueprint.route("/addtask",methods=["POST"])
+def add_task():
+    content = request.get_json()
+    print(content)
+    if "content" not in content or "date" not in content:
+        return jsonify({"error":"Hatalı işlem"}), 400
+    
+    date = content["date"].strip()  
+    content = content["content"].strip() 
+    
+    db = MongoDB(url=db_url, db_name=db_name)
+    unique_id = str(uuid.uuid4())
+
+    data = Task(content=content,date=date,who=g.user_name,id = unique_id).__dict__
+    db.insert_one(collection_name="task", data=data)
+    
+    return jsonify({"id":unique_id}), 200
+
+
+
+@education_blueprint.route("/deltask", methods=["DELETE"])
+def del_task():
+    task_id = request.headers.get("task_id")
+    print(task_id)
+    db = MongoDB(db_name=db_name, url=db_url) 
+    
+    result = db.delete_one(collection_name="task", query={"task_id":task_id})
+
+    print(result)
+    
+    return jsonify({"error": "silindi"}),200

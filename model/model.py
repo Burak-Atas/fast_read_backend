@@ -83,12 +83,20 @@ class Video:
 
 
 class Messages:
-    def __init__(self, sender, receiver, sender_time,cender_date, read,messages):
+    def __init__(self,header, sender, receiver, date,cender_date,content):
         self.sender = sender
+        self.header = header
         self.receiver = receiver
-        self.sender_time = sender_time
-        self.read = read
-        self.messages = messages
+        self.date = date
+        self.content = content
+
+class Task:
+    def __init__(self,date, who,content,id):
+        self.who = who
+        self.date = date
+        self.content = content
+        self.task_id = id
+
 
 
 class Process:
