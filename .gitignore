@@ -2,3 +2,5 @@ venv
 Dockerfile
 __pycache__/
 *.py[cod]
+
+static/

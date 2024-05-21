@@ -102,9 +102,11 @@ def add_user():
     return jsonify({"message":"kullanıcı eklendi","username": username, "password": password,"token":userToken}), 200
 
 
-@education_blueprint.route("/deluser/<string:name>", methods=["DELETE"])
-def del_user(name):
-    print(name)
+@education_blueprint.route("/deluser", methods=["DELETE"])
+def del_user():
+    name = request.headers.get("user_name")
+    if name=="":
+        return jsonify({"message": "kullanıcı henüz silinemedi"}), 400
     query = {"user_name": name}
     db = MongoDB(db_name=db_name, url=db_url)
     deleted_user = db.delete_one("users", query=query)
