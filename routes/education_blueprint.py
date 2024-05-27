@@ -110,6 +110,8 @@ def del_user():
     query = {"user_name": name}
     db = MongoDB(db_name=db_name, url=db_url)
     deleted_user = db.delete_one("users", query=query)
+    deleted_process = db.delete_one("process", query=query)
+    
 
     if deleted_user:
         return jsonify({"message": "Kullanıcı başarılı şekilde silindi"}), 200
@@ -246,9 +248,14 @@ def del_video():
     db = MongoDB(url=db_url, db_name=db_name)
     deleted_video = db.delete_one(collection_name="videos", query={"name": name})
 
-    
     if deleted_video == 1:
-        return jsonify({"message": "Video başarıyla silindi."}), 200
+        # Dosya sisteminden videoyu sil
+        video_path = os.path.join("static", name)
+        if os.path.exists(video_path):
+            os.remove(video_path)
+            return jsonify({"message": "Video başarıyla silindi."}), 200
+        else:
+            return jsonify({"message": "Veritabanından silindi ancak dosya sisteminde video bulunamadı."}), 200
     else:
         return jsonify({"error": "Belirtilen video bulunamadı veya zaten silinmiş olabilir."}), 404
 
@@ -367,8 +374,5 @@ def del_task():
     print(task_id)
     db = MongoDB(db_name=db_name, url=db_url) 
     
-    result = db.delete_one(collection_name="task", query={"task_id":task_id})
-
-    print(result)
-    
+    result = db.delete_one(collection_name="task", query={"task_id":task_id})    
     return jsonify({"error": "silindi"}),200
