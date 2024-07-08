@@ -152,39 +152,42 @@ def new_day():
         return jsonify("egzersizleri tamamlayın",exercise["name"]),200   
         
 
-@student_blueprint.route("/exerciseisover", methods=["POST"])
-def egzersiz_bitti():
+@student_blueprint.route("/<string:name>/exerciseisover", methods=["POST"])
+def egzersiz_bitti(name):
     user_name = g.user_name 
     db = MongoDB(url=db_url, db_name=db_name)
     process = db.find_one(collection_name="process", query={"user_name": user_name})
+    exercise = db.find_one(collection_name="exercise",query={"name":name})
+    print(exercise)
     
     if not isinstance(process, dict):
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
     
-    now_exercise = process.get("next_exercise") 
-    new_next_exercise = now_exercise + 1
-    db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
-   
-    if process["okey"]==False:
-        print("bu ne",now_exercise)
-        print("eln",len_exercise)
-        if now_exercise>=len_exercise:
-            found_user = db.find_one(collection_name="users",query={"user_name": user_name}) 
-            print("kullancıı bulundu")
-            if not isinstance(found_user, dict):
-                return jsonify({"error": "Hatalı işlem yaptınız"}),400
-            complated_day = found_user.get("tamamlanan_gun")
-            complated_day+=1
-            new_data = {"tamamlanan_gun":complated_day}
-            db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
-            db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
-                            
-            return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
+    nw = process.get("now_exercise")
+    print(nw,exercise.get("order"))
+    if nw == exercise.get("order"):
+        print("burada")
+        now_exercise = process.get("next_exercise") 
+        new_next_exercise = now_exercise + 1
+        db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
     
-        return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200
-           
-    
-    return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
+        if process["okey"]==False:
+            if now_exercise>=len_exercise:
+                found_user = db.find_one(collection_name="users",query={"user_name": user_name}) 
+                print("kullancıı bulundu")
+                if not isinstance(found_user, dict):
+                    return jsonify({"error": "Hatalı işlem yaptınız"}),400
+                complated_day = found_user.get("tamamlanan_gun")
+                complated_day+=1
+                new_data = {"tamamlanan_gun":complated_day}
+                db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
+                db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
+                                
+                return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
+        
+            return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200        
+        return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
+    return jsonify("egzersizi daha önce tamamladınız"),200
         
 """
 //kullanıcı iletişim işlemleri
