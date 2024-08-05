@@ -31,13 +31,9 @@ def hello():
     
     user= db.find_one(collection_name="users",query={"user_name":user_name})
     if type(user)!=dict:
-        return jsonify({"error":"lütfen tekrar giriş yapın"}),400
-    
-    
+        return jsonify({"error":"lütfen tekrar giriş yapın"}),400    
     
     process= db.find_one(collection_name="process",query={"user_name":user_name})
-    
-    
     
     if type(process)!=dict:
         return jsonify({"error":"lütfen tekrar giriş yapın"}),400
@@ -75,8 +71,6 @@ def gune_ait_egzersiz(day):
     if type(process) != dict:
         return jsonify({"error": "hatalı işlem yaptınız"}), 400  
     
-    print(day)
-    print(process["day"])
   
     if int(day[-1])<int(process["day"][-1]):
         return jsonify({"egzersiz": days["exercise"],"order":1,"order":len_exercise}), 200
@@ -88,6 +82,17 @@ def gune_ait_egzersiz(day):
     return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
 
 
+def check_last_digits(day):
+    try:
+        print("day",day)
+        last_two_digits = int(day[-2:])
+        return last_two_digits,2
+    except ValueError:
+        try:
+            last_one_digit = int(day[-1])
+            return last_one_digit,1
+        except ValueError:
+            return None
 
 
 @student_blueprint.route("/<string:day>/<string:name>",methods = ["GET"])
@@ -95,14 +100,24 @@ def egzersiz(day,name):
     query = {"user_name":g.user_name}
 
     control  = db.find_one("process",query=query)    
+  
+    day_digits = check_last_digits(day)
+    process_digits = check_last_digits(control["day"])
+    print("day digits",day_digits)
+    print("process_digits",process_digits)
     
-    if int(day[-1])<int(control["day"][-1]):
-        now_exerscise=db.find_one(collection_name="exercise",query={"name":name})
-        data = now_exerscise["data"]
-        return jsonify(data),200
-    
-    if day[-1] > control["day"][-1]:
+    if day_digits[1] == process_digits[1]:
+        if day_digits[0]>process_digits[0]:
+            print("burada")
+            return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
+        else:
+            now_exerscise=db.find_one(collection_name="exercise",query={"name":name})
+            data = now_exerscise["data"]
+            return jsonify(data),200
+    elif day_digits[1] > process_digits[1]: 
         return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
+    
+    
     if day[-1] < control["day"][-1]:
         exercise =len_exercise
     exercise = control["now_exercise"]
@@ -113,20 +128,33 @@ def egzersiz(day,name):
         data = now_exerscise["data"]
         return jsonify(data),200
         
-    now_exerscise=db.find_one(collection_name="exercise",query={"order":exercise})
+    now_exerscise=db.find_one(collection_name="days",query={"day":day})
+    print("reis",now_exerscise)
     if type(now_exerscise)!=dict:
         return jsonify({"error":"egzersiz bulunamadı"}),400
     
     if day==control["day"]:
-        if name != now_exerscise["name"]:
-            return jsonify({"error":"tamamlanması gereken egzersiz :"+now_exerscise["name"]}),400    
+        dnd = find_exercise(now_exerscise["exercise"],name,exercise)
+        print("dnd",dnd)
+        if not dnd :
+            return jsonify({"error":"lütfen önceki egzersizleri tamamlayın"}),400    
+        
+    exercise_data =db.find_one(collection_name="exercise",query={"name":name})
     
-    data = now_exerscise["data"]
-    #text = now_exerscise["text"]
-    #complated_time = now_exerscise["time"]
-    #return jsonify({"text":text,"speed":speed,"complated_time":complated_time})
-    #datas = {"speed":data[exercise-1]["speed"][exercise-1],"text":data[exercise-1]["text"][exercise-1]}
+    data = exercise_data["data"]
+
     return jsonify(data),200
+
+def find_exercise(exercise_list, exercise_name, exercise_order):
+    for i, exercise in enumerate(exercise_list):
+        if exercise == exercise_name:
+            if i == int(exercise_order):
+                return True
+            else:
+                return False
+    return False
+
+
 
 
 @student_blueprint.route("/newday",methods=["POST"])
@@ -140,16 +168,20 @@ def new_day():
     createdTime = datetime.now()
     date = createdTime.strftime("%Y-%m-%d")
     if process["okey"]:
+        print("deneme",int(process["day"][-2:]))
+        if int(process["day"][-2:])>24:
+            process = db.find_one(collection_name="users",query={"user_name":user_name})
+            count = process["count"] + 1
+            if count > 3:
+                return jsonify({"message":"daha fazla kurs hakkınız kalmadı lütfen yetkili kişi ile iletişime geçin"}),400
+            db.update_one(collection_name="users",query={"user_name":user_name},data={"count":count})
+            return jsonify({"message":"kursu başarılı bir şekilde tamamladınız"}),200
         if date>=process["next_day_date"]:
             newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
             db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":"day2","okey":False})
             return jsonify({"message":"yeni güne geçebilirsiniz"}),200
     else:
-        order = process["now_exercise"]
-        exercise = db.find_one(collection_name="exercise",query={"order":order})
-        if type(exercise)!=dict:
-            return jsonify({"error":"lütfen daha sonra tekrar deneyein"}),500
-        return jsonify("egzersizleri tamamlayın",exercise["name"]),200   
+        return jsonify("egzersizleri tamamlayın"),200   
         
 
 @student_blueprint.route("/<string:name>/exerciseisover", methods=["POST"])
@@ -158,7 +190,7 @@ def egzersiz_bitti(name):
     db = MongoDB(url=db_url, db_name=db_name)
     process = db.find_one(collection_name="process", query={"user_name": user_name})
     exercise = db.find_one(collection_name="exercise",query={"name":name})
-    print(exercise)
+    print(exercise)  
     
     if not isinstance(process, dict):
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
@@ -166,7 +198,6 @@ def egzersiz_bitti(name):
     nw = process.get("now_exercise")
     print(nw,exercise.get("order"))
     if nw == exercise.get("order"):
-        print("burada")
         now_exercise = process.get("next_exercise") 
         new_next_exercise = now_exercise + 1
         db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})

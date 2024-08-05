@@ -4,13 +4,13 @@ from dotenv import dotenv_values
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
-from model.model import Story,Egzersiz,Process,User,Video,Messages,Task
+from model.model import Story,Egzersiz,Process,User,Video,Messages,Task,Teacher
 from datetime import datetime, timedelta
 from bson import ObjectId
 import os
 import uuid
 
-
+import time
 
 env_values = dotenv_values()
 db_url = env_values.get("DATABASE_URL")
@@ -26,7 +26,8 @@ education_blueprint = Blueprint('education_blueprint', __name__)
 
 @education_blueprint.before_request
 def check_user_type():
-    if g.user_type != const.student:
+    print(g.user_type)
+    if g.user_type != const.teacher and g.user_type != const.admin:
         return jsonify({"error": "yetkisiz erişim"}), 403
 
 
@@ -45,20 +46,52 @@ def teach():
     KULLANICI İŞLEMLERİ 
 """
 
-@education_blueprint.route("/user", methods=["GET"])
-def user():
+# bir yılı geçmiş kullanıcıyı silme işlemi
+@education_blueprint.route("/firstdelluser",methods=["GET"])
+def first_dell_user():
+    if g.user_type != const.admin:
+        return jsonify(),400
+
     db = MongoDB(url=db_url, db_name=db_name)
     users_cursor = db.find_many(collection_name="users", query=None)
     users = [dict(user) for user in users_cursor]
+
     
-    # Remove _id field from each dictionary
+    for user in users:
+        if user["kayit_tarihi"]>datetime.now():
+            user_name =  user["user_type"]
+            db.delete_one(collection_name="users",query={"user_name":user_name})
+    
+    users_cursor.close()
+    return jsonify(users), 200
+    
+    
+
+@education_blueprint.route("/user", methods=["GET"])
+def user():
+    db = MongoDB(url=db_url, db_name=db_name)
+    if g.user_type == const.teacher:
+        users_cursor = db.find_many(collection_name="users", query={"added":g.user_name})
+        users = [dict(user) for user in users_cursor]
+        
+        for user in users:
+            del user['_id']
+            del user['token']
+            del user["user_type"]
+        
+        users_cursor.close()
+        users_cursor.close()
+        return jsonify(users), 200   
+    
+    users_cursor = db.find_many(collection_name="users", query=None)
+    users = [dict(user) for user in users_cursor]
+    
     for user in users:
         del user['_id']
         del user['token']
         del user["user_type"]
     
     users_cursor.close()
-    
     return jsonify(users), 200
 
 
@@ -74,7 +107,6 @@ def add_user():
     phoneNumber = content["phone_number"]
     level = content["level"]
     
-    
     db = MongoDB(db_name=db_name, url=db_url)
     
     users = db.find_one(collection_name="users",query={"user_name":username})
@@ -87,7 +119,6 @@ def add_user():
     userType = const.student
     basari_puani = 0
     
-    
     createdTime = datetime.now()
     date = createdTime.strftime("%Y-%m-%d")
     time = createdTime.strftime("%H:%M:%S")
@@ -95,11 +126,75 @@ def add_user():
 
     new_id = ObjectId()
 
-    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level).__dict__
+    activated = True
+
+    if g.user_type == const.teacher:
+        activated = False
+
+
+    teacher_name = g.user_name
+
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0).__dict__
     usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate,okey=False).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
     return jsonify({"message":"kullanıcı eklendi","username": username, "password": password,"token":userToken}), 200
+
+@education_blueprint.route("/user/isactivate",methods=["POST"])
+def activated():
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    
+    content = request.get_json()
+    user_name = content["user_name"]
+    print(user_name)
+
+    db = MongoDB(db_name=db_name, url=db_url)
+    users = db.find_one(collection_name="users",query={"user_name":user_name})
+
+    if type(users)!=dict:
+        return jsonify({"error": "kullanıcı_adı  bulunamadı"}), 400
+    
+    print(users["activate"])
+    
+    if users["activate"]=="True":
+        return jsonify({"message":"kullanıcı zaten aktif"}),200
+    
+    activate = True
+    
+    result = db.update_one(collection_name="users",query={"user_name":user_name},data={"activate":activate})
+    print(result)
+    
+    return jsonify({"message":"işlem başarılı"}),200
+
+@education_blueprint.route("/addteacher",methods=["POST"])
+def add_teacher():
+    content = request.get_json()
+    if content is None or "user_name" not in content or "password" not in content:
+        return jsonify({"error": "Eksik bilgi"}), 400
+    
+    username = content["user_name"]
+    password = content["password"]
+    name = content["name"]
+    phoneNumber = content["phone_number"]
+    
+    db = MongoDB(db_name=db_name, url=db_url)
+    
+    users = db.find_one(collection_name="users",query={"user_name":username})
+    print(users)
+    if type(users)==dict:
+        return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
+    
+    token = JWT_Token()
+    userToken = token.generate_token_teacher(user_id=None,name=name,role=const.teacher,user_name=username)
+    
+    new_id = ObjectId()
+    userType = const.student
+    
+    createdTime = datetime.now()
+    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name).__dict__
+    db.insert_one(collection_name="users",data=usr)
+    return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username, "password": password,"token":userToken}), 200
 
 
 @education_blueprint.route("/deluser", methods=["DELETE"])
@@ -111,7 +206,6 @@ def del_user():
     db = MongoDB(db_name=db_name, url=db_url)
     deleted_user = db.delete_one("users", query=query)
     deleted_process = db.delete_one("process", query=query)
-    
 
     if deleted_user:
         return jsonify({"message": "Kullanıcı başarılı şekilde silindi"}), 200
@@ -190,10 +284,8 @@ def upload_video():
     if 'video' not in request.files:
         return jsonify({"error": "No video part"}), 400
 
-    # Retrieve the uploaded video file
     video = request.files['video']
 
-    # Check if a file was selected
     if video.filename == '':
         return jsonify({"error": "No selected video"}), 400
 
@@ -211,7 +303,6 @@ def upload_video():
             "url": url
         })
 
-        # Return a success message along with the filename
         return jsonify({"message": "Video successfully uploaded", "filename": filename,"name":name,"url":url}), 200
   
     
@@ -284,7 +375,7 @@ def send_message():
     current_time_str = current_datetime.strftime("%H:%M:%S")
     
     db = MongoDB(url=db_url, db_name=db_name)   
-    
+
     data = Messages(header=header,sender=g.user_name, receiver=const.admin, content=messages, cender_date=current_date, date=current_time_str).__dict__
     
     db.insert_one(collection_name="messages", data=data)

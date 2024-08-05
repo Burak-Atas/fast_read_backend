@@ -1,5 +1,5 @@
 class User:
-    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi,token,level,name):
+    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi,token,level,name,teacher_name,activate,count):
         self._id = _id
         self.user_name = user_name
         self.password = password
@@ -12,6 +12,9 @@ class User:
         self.level = level
         self.user_type =user_type
         self.name = name
+        self.teacher_name = teacher_name
+        self.activate = activate
+        self.count = count
         
         
              
@@ -107,3 +110,19 @@ class Process:
         self.day = day
         self.next_day_date = next_day_date
         self.okey = okey
+        
+class Teacher:
+    def __init__(self, _id, user_name, password, phone_number,user_type,kayit_tarihi,token,name):
+        self._id = _id
+        self.user_name = user_name
+        self.password = password
+        self.phone_number = phone_number
+        self.tamamlanan_gun = 0
+        self.user_type = user_type
+        self.kayit_tarihi = kayit_tarihi
+        self.token = token
+        self.user_type =user_type
+        self.name = name
+        
+        
+       

@@ -43,7 +43,6 @@ def login():
 
     db = MongoDB(db_name=db_name,url=db_url)
     user = db.find_one("users",query=query)
-    print(user)
     
     if type(user)!=dict:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
@@ -51,6 +50,9 @@ def login():
     if user["password"]!=password:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
     
+    if user["activate"]==False:
+        return jsonify({"message":"lütfen üyeliğinizin aktifliğini bekleyin"}),200
+        
     return jsonify({"message":"giriş başarılı","token":user["token"],"name":user["name"]}),200
     
     
@@ -63,12 +65,14 @@ def auth_middleware():
             decode_token= token_handler.decode_token(token=token)[0]   
             if type(decode_token)!=dict:
                 return jsonify({"error":"tekrar giriş yapınız",}),400
+                    
             g.user_type = decode_token["role"]
             g.token = token
             g.user_name = decode_token["user_name"]
-            g.level = decode_token["level"]
+            if g.user_type == const.student :
+                g.level = decode_token["level"]
         else:
-            g.user_type = const.student
+            g.user_type = const.admin
             g.user_name = "elvansurel"
             
           #  return jsonify({"error":"yetkisiz erişim"})

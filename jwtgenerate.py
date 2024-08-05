@@ -12,6 +12,12 @@ class JWT_Token():
         token = jwt.encode({'user_id': user_id, 'role': role,"name":name, "level":level,'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
 
         return token
+    def generate_token_teacher(self, user_id, role, name, user_name):
+        token_exp = datetime.utcnow() + timedelta(days=31)
+        secret_key = self.secret_key
+        token = jwt.encode({'user_id': user_id, 'role': role,"name":name, 'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
+
+        return token
 
 
     def verify_token(self, token):
