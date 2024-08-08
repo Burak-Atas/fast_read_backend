@@ -168,6 +168,9 @@ def activated():
 
 @education_blueprint.route("/addteacher",methods=["POST"])
 def add_teacher():
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    
     content = request.get_json()
     if content is None or "user_name" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
@@ -188,7 +191,7 @@ def add_teacher():
     userToken = token.generate_token_teacher(user_id=None,name=name,role=const.teacher,user_name=username)
     
     new_id = ObjectId()
-    userType = const.student
+    userType = const.teacher
     
     createdTime = datetime.now()
     usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name).__dict__
@@ -198,22 +201,32 @@ def add_teacher():
 
 @education_blueprint.route("/deluser", methods=["DELETE"])
 def del_user():
-    name = request.headers.get("user_name")
-    if name=="":
-        return jsonify({"message": "kullanıcı henüz silinemedi"}), 400
+    print("Headers:", request.headers)  # Tüm başlıkları yazdır
+
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    
+    name = request.headers.get("username")
+    print("name:", name)
+    
+    if name is None or name == "":
+        return jsonify({"message": "Kullanıcı adı belirtilmemiş."}), 400
+    
     query = {"user_name": name}
     db = MongoDB(db_name=db_name, url=db_url)
     deleted_user = db.delete_one("users", query=query)
     deleted_process = db.delete_one("process", query=query)
 
-    if deleted_user:
-        return jsonify({"message": "Kullanıcı başarılı şekilde silindi"}), 200
+    if deleted_user :
+        return jsonify({"message": "Kullanıcı başarılı şekilde silindi."}), 200
     else:
-        return jsonify({"error": "Kullanıcı bulunamadı"}), 404
-
+        return jsonify({"error": "Kullanıcı bulunamadı."}), 404
 
 @education_blueprint.route("/alldeluser",methods=["DELETE"])
 def all_del_user():
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    
     db = MongoDB(url=db_url,db_name=db_name)
 
     db.delete_many(collection_name="users",query={})
@@ -223,6 +236,9 @@ def all_del_user():
 
 @education_blueprint.route("/updateuser/<string:old_name>", methods=["PUT"])
 def update_user(old_name):
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    
     content = request.get_json()
     if content is None or ("new_username" not in content and "new_password" not in content):
         return jsonify({"error": "Eksik bilgi"}), 400
