@@ -89,7 +89,6 @@ def user():
     for user in users:
         del user['_id']
         del user['token']
-        del user["user_type"]
     
     users_cursor.close()
     return jsonify(users), 200
