@@ -103,13 +103,14 @@ class Task:
 
 
 class Process:
-    def __init__(self,user_name,next_exercise,now_exercise,day,next_day_date,okey):
+    def __init__(self,user_name,next_exercise,now_exercise,day,next_day_date,okey,level):
         self.user_name = user_name
         self.next_exercise = next_exercise
         self.now_exercise= now_exercise
         self.day = day
         self.next_day_date = next_day_date
         self.okey = okey
+        self.level = level
         
 class Teacher:
     def __init__(self, _id, user_name, password, phone_number,user_type,kayit_tarihi,token,name):
@@ -117,7 +118,6 @@ class Teacher:
         self.user_name = user_name
         self.password = password
         self.phone_number = phone_number
-        self.tamamlanan_gun = 0
         self.user_type = user_type
         self.kayit_tarihi = kayit_tarihi
         self.token = token

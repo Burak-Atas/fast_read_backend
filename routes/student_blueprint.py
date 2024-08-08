@@ -19,6 +19,13 @@ db = MongoDB(url=db_url, db_name=db_name)
 len_exercise = db.count_documents("exercise",query={})
 print(len_exercise)
 
+
+
+def len_exercises(day):
+    exercises = db.count_documents("process",query={"day":day})
+    len_exercise = len(exercises["exercise"])
+    print(len_exercise) 
+
 @student_blueprint.before_request
 def check_user_type():
     if g.user_type not in {const.student, const.teacher}:
@@ -119,7 +126,7 @@ def egzersiz(day,name):
     
     
     if day[-1] < control["day"][-1]:
-        exercise =len_exercise
+        exercise =len_exercises(day=day)
     exercise = control["now_exercise"]
     if exercise>=len_exercise:
         now_exerscise=db.find_one(collection_name="exercise",query={"name":name})
