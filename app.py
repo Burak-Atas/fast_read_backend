@@ -50,9 +50,10 @@ def login():
     if user["password"]!=password:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
     
-    if user["activate"]==False:
-        return jsonify({"message":"lütfen üyeliğinizin aktifliğini bekleyin"}),200
-        
+    if user["user_type"]==const.student:
+        if user["activate"]==False:
+            return jsonify({"message":"lütfen üyeliğinizin aktifliğini bekleyin"}),200
+            
     return jsonify({"message":"giriş başarılı","token":user["token"],"name":user["name"]}),200
     
     
