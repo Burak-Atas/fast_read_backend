@@ -190,20 +190,23 @@ def new_day():
         return jsonify("egzersizleri tamamlayın"),200   
         
 
-@student_blueprint.route("/<string:name>/exerciseisover", methods=["POST"])
-def egzersiz_bitti(name):
+@student_blueprint.route("/<string:day>/<string:name>/exerciseisover", methods=["POST"])
+def egzersiz_bitti(day,name):
     user_name = g.user_name 
     db = MongoDB(url=db_url, db_name=db_name)
     process = db.find_one(collection_name="process", query={"user_name": user_name})
-    exercise = db.find_one(collection_name="exercise",query={"name":name})
+    exercise = db.find_one(collection_name="days",query={"day":day})
     print(exercise)  
     
     if not isinstance(process, dict):
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
+
+    
     
     nw = process.get("now_exercise")
-    print(nw,exercise.get("order"))
-    if nw == exercise.get("order"):
+    okey = find_exercise(exercise_list=exercise["exercise"],exercise_name=name,exercise_order=nw)
+    
+    if okey:
         now_exercise = process.get("next_exercise") 
         new_next_exercise = now_exercise + 1
         db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
