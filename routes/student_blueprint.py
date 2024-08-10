@@ -22,9 +22,9 @@ print(len_exercise)
 
 
 def len_exercises(day):
-    exercises = db.count_documents("process",query={"day":day})
-    len_exercise = len(exercises["exercise"])
-    print(len_exercise) 
+    exercises = db.find_one("days",query={"day":day})
+    print("deneme",len(exercises["exercise"])) 
+    return len(exercises["exercise"])
 
 @student_blueprint.before_request
 def check_user_type():
@@ -222,7 +222,6 @@ def egzersiz_bitti(name):
                 db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)
                                 
                 return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
-        
             return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200        
         return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
     return jsonify("egzersizi daha önce tamamladınız"),200
