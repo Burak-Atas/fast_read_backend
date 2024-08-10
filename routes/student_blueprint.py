@@ -28,8 +28,7 @@ def len_exercises(day):
 
 @student_blueprint.before_request
 def check_user_type():
-    if g.user_type not in {const.student, const.teacher}:
-        return jsonify({"error": "yetkisiz erişim"}), 403
+    print("dneem")
 
 
 @student_blueprint.route('/dashboard',methods=["GET"])
