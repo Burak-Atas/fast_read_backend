@@ -200,8 +200,6 @@ def egzersiz_bitti(day,name):
         return jsonify({"error": "Hatalı işlem yaptınız"}),400
 
     
-    
-    
     now_exercise = process.get("next_exercise") 
     new_next_exercise = now_exercise + 1
     db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
