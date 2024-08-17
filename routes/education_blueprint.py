@@ -99,9 +99,10 @@ def add_user():
     content = request.get_json()
     if content is None or "user_name" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
+    print(content)
     
-    username = content["user_name"]
-    password = content["password"]
+    username = content["user_name"].strip()
+    password = content["password"].strip()
     name = content["name"]
     phoneNumber = content["phone_number"]
     level = content["level"]
@@ -133,7 +134,7 @@ def add_user():
 
     teacher_name = g.user_name
 
-    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0).__dict__
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0,last_seen_data=None).__dict__
     usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate,okey=False,level=level).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
@@ -206,7 +207,7 @@ def del_user():
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
     
-    name = request.headers.get("username")
+    name = request.headers.get("username").strip()
     print("name:", name)
     
     if name is None or name == "":
@@ -482,3 +483,51 @@ def del_task():
     
     result = db.delete_one(collection_name="task", query={"task_id":task_id})    
     return jsonify({"error": "silindi"}),200
+
+
+
+    """
+    EGZERSİZ İŞELMLERİ
+    """
+@education_blueprint.route("/getexercisedetails",methods=["POST"])
+def get_exercise():
+    if g.user_type != const.admin:
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+
+    exercise_data = request.get_json()
+    print(exercise_data)
+    
+    db = MongoDB(db_name=db_name, url=db_url) 
+    cursor = db.find_many(collection_name="after_exercise",query=exercise_data["formdata"])
+    exercises = [dict(exercise) for exercise in cursor]
+
+    
+    for ex in exercises:
+        del ex['_id']
+    
+    return jsonify(exercises), 200
+    
+@education_blueprint.route("/getexercises", methods=["GET"])
+def get_exercises():
+    if g.user_type != const.admin:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    level = request.args.get('level')
+    print(level)
+    try:
+        level = int(level) if level is not None else None  # level parametresini int yap
+    except ValueError:
+        return jsonify({"error": "Geçersiz level değeri"}), 400  # Geçersiz level hatası
+    
+    db = MongoDB(db_name=db_name, url=db_url)
+    query = {}
+    if level is not None:
+        query["level"] = level  # Eğer level varsa sorguya ekle
+    
+    cursor = db.find_many(collection_name="exercise", query=query)
+    exercises = [dict(exercise) for exercise in cursor]
+        
+    for ex in exercises:
+        del ex['_id']
+    
+    return jsonify(exercises), 200

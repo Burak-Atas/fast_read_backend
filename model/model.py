@@ -1,5 +1,5 @@
 class User:
-    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi,token,level,name,teacher_name,activate,count):
+    def __init__(self, _id, user_name, password, phone_number,basari_puani,user_type,kayit_tarihi,token,level,name,teacher_name,activate,count,last_seen_data):
         self._id = _id
         self.user_name = user_name
         self.password = password
@@ -15,7 +15,7 @@ class User:
         self.teacher_name = teacher_name
         self.activate = activate
         self.count = count
-        
+        self.last_seen_data = last_seen_data #son görülme
         
              
 class Egzersiz:

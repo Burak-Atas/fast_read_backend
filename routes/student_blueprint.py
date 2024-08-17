@@ -55,7 +55,12 @@ def hello():
     len_exesice = len(days["exercise"])
     if type(days)!=dict:
         return jsonify({"error":"lütfen tekrar giriş yapın"}),400
-        
+    
+    now = datetime.now()
+
+    formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    db.update_one(collection_name="users",query={"user_name":user_name},data={"last_seen_data":formatted_now})
         
     complated_day = user["tamamlanan_gun"]
     return jsonify({"user_name":user_name,"user_score":user_score,"complated_days":complated_day,"process_order":process_order_exercise,"all_exercise":len_exesice}),200
@@ -193,6 +198,58 @@ def new_day():
 @student_blueprint.route("/<string:day>/<string:name>/exerciseisover", methods=["POST"])
 def egzersiz_bitti(day,name):
     user_name = g.user_name 
+    content = request.get_json()
+    
+    
+    content["user_name"]=user_name
+    content["exercise_name"]=name
+    content["execise_day"]=day
+
+    process = db.find_one(collection_name="process", query={"user_name": user_name})
+    day_exercise = db.find_one(collection_name="days", query={"day": day})
+    
+    day_digits = check_last_digits(day)
+    process_digits = check_last_digits(process["day"])
+    
+    if day_digits[1] == process_digits[1]:
+        if day_digits[0]>process_digits[0]:
+            return jsonify({"error":"tamamlanması gereken gün : "+process["day"]})
+    elif day_digits[1] > process_digits[1]: 
+        return jsonify({"error":"tamamlanması gereken gün : "+process["day"]})
+    
+    
+    exercises =day_exercise["exercise"]
+    len_day_exercise = len(exercises)
+    print(exercises)
+    now_exercise = process.get("now_exercise") 
+    
+    # kullancıının kaldığı egzersiz
+    # gelen istekteki egzersizin aynı mı kontrolü
+    dnd = find_exercise(exercises,name,now_exercise)
+
+    if dnd:
+        now_exercise = process.get("next_exercise") 
+        new_next_exercise = now_exercise + 1
+        db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
+        if process["okey"]==False:
+            if now_exercise>=len_day_exercise:
+                found_user = db.find_one(collection_name="users",query={"user_name": user_name}) 
+                if not isinstance(found_user, dict):
+                    return jsonify({"error": "Hatalı işlem yaptınız"}),400
+                complated_day = found_user.get("tamamlanan_gun")
+                complated_day+=1
+                new_data = {"tamamlanan_gun":complated_day}
+                db.insert_one(collection_name="after_exercise",data=content)
+                db.update_one(collection_name="process",query={"user_name": user_name},data={"okey":True})
+                db.update_one(collection_name="users",query={"user_name": user_name},data=new_data)   
+                return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
+            db.insert_one(collection_name="after_exercise",data=content)
+            return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200        
+        return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
+    return jsonify({"message":"lütfen kaldığınız egzersizi tamamlayın"}) ,400 
+    
+    """
+    user_name = g.user_name 
     db = MongoDB(url=db_url, db_name=db_name)
     process = db.find_one(collection_name="process", query={"user_name": user_name})
     
@@ -219,7 +276,7 @@ def egzersiz_bitti(day,name):
             return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
         return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200        
     return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
-        
+    """  
 """
 //kullanıcı iletişim işlemleri
 """
