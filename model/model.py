@@ -125,4 +125,12 @@ class Teacher:
         self.name = name
         
         
-       
+        
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from datetime import datetime
+
+class Knowledge(BaseModel):
+    id:str
+    content: str
+    publish: bool = Field(default=False)

@@ -47,31 +47,35 @@ def teach():
 """
 
 # bir yılı geçmiş kullanıcıyı silme işlemi
-@education_blueprint.route("/firstdelluser",methods=["GET"])
+@education_blueprint.route("/firstdelluser", methods=["GET"])
 def first_dell_user():
     if g.user_type != const.admin:
-        return jsonify(),400
+        return jsonify({"error": "lütfen admin hesabı ile giriş yapınız"}), 200
 
     db = MongoDB(url=db_url, db_name=db_name)
     users_cursor = db.find_many(collection_name="users", query=None)
     users = [dict(user) for user in users_cursor]
 
-    
+    # Şu anki tarihten bir yıl öncesine giden tarih
+    one_year_ago = datetime.now() - timedelta(days=365)
+
     for user in users:
-        if user["kayit_tarihi"]>datetime.now():
-            user_name =  user["user_type"]
-            db.delete_one(collection_name="users",query={"user_name":user_name})
-    
+        if user["kayit_tarihi"] < one_year_ago:
+            user_name = user["user_name"]
+            db.delete_one(collection_name="users", query={"user_name": user_name})
+
     users_cursor.close()
-    return jsonify(users), 200
+    return jsonify({"message": "Bir yılı geçen kullanıcılar başarıyla silindi"}), 200
     
     
 
 @education_blueprint.route("/user", methods=["GET"])
 def user():
     db = MongoDB(url=db_url, db_name=db_name)
+    print("atas",g.user_type)
+    
     if g.user_type == const.teacher:
-        users_cursor = db.find_many(collection_name="users", query={"added":g.user_name})
+        users_cursor = db.find_many(collection_name="users", query={"teacher_name":g.user_name})
         users = [dict(user) for user in users_cursor]
         
         for user in users:
@@ -202,7 +206,6 @@ def add_teacher():
 
 @education_blueprint.route("/deluser", methods=["DELETE"])
 def del_user():
-    print("Headers:", request.headers)  # Tüm başlıkları yazdır
 
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
@@ -531,3 +534,112 @@ def get_exercises():
         del ex['_id']
     
     return jsonify(exercises), 200
+
+
+@education_blueprint.route("/selecttext",methods=["GET"])
+def select_text():
+    if g.user_type==const.student:
+        return jsonify({"error": "Lütfen admin veya öğretmen hesabı ile giriş yapınız"}), 403
+
+    content = request.get_json()
+    
+    db = MongoDB(db_name=db_name, url=db_url)
+    
+    cursor_all = db.find_one(collection_name="exercise",query=content)
+    
+    return jsonify(cursor_all["data"]),200
+    
+
+
+# faydalı bilgiler
+from model.model import Knowledge
+
+from pydantic import ValidationError
+
+@education_blueprint.route("/setknowledge", methods=["POST"])
+def set_knowledge():
+    if g.user_type != const.admin:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+    
+    try:
+        content = request.get_json()
+        content["id"] = str(uuid.uuid4())  # Add a unique ID to the content
+        knowledge = Knowledge(**content)
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+    db = MongoDB(url=db_url, db_name=db_name)
+    res = db.insert_one(collection_name="knowledge", data=knowledge.dict())
+
+    if res:
+        return jsonify({"message": "Başarılı şekilde eklendi"}), 200
+    else:
+        return jsonify({"error": "Ekleme yapılırken hata oluştu"}), 500
+
+
+@education_blueprint.route("/setpublish", methods=["POST"])
+def set_publish():
+    if g.user_type != const.admin:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    content = request.get_json()
+    print(content)
+
+    db = MongoDB(url=db_url,db_name=db_name)
+    res = db.update_one(collection_name="knowledge",query=content,data={"publish":True})
+
+    print(res)
+    if res==1:
+        return jsonify({"message": "Faydalı  Bilgi Yayınlandı"}), 200
+    else:
+        return jsonify({"error":"faydalı bilgi yayınlanırken hata oluştu"}),400
+@education_blueprint.route("/setnotpublish", methods=["POST"])
+def set_not_publish():
+    if g.user_type != const.admin:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    content = request.get_json()
+    print(content)
+
+    db = MongoDB(url=db_url,db_name=db_name)
+    res = db.update_one(collection_name="knowledge",query=content,data={"publish":False})
+
+    print(res)
+    
+
+    if res==1:
+        return jsonify({"message": "Faydalı  Bilgi Yayından kaldırıldı"}), 200
+    else :
+        return jsonify({"message": "kaldırma işlmei sırasında hata oluştur"}), 400
+        
+
+
+@education_blueprint.route("/getknowledge", methods=["GET"])
+def get_knowledge():
+    if g.user_type == const.student:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    db = MongoDB(url=db_url, db_name=db_name)
+    res = db.find_many(collection_name="knowledge", query={})
+    cursor = []
+    for document in res:
+        document.pop('_id', None)  # _id alanını kaldır
+        cursor.append(document)
+    return jsonify(cursor), 200
+
+@education_blueprint.route("/deleteknowledge",methods=["DELETE"])
+def delete_knowledge():
+    if g.user_type != const.admin:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    id = request.headers.get("header")
+    print(id)
+    if id == "":
+        return jsonify({"error":"internal error"}),500
+    db = MongoDB(url=db_url, db_name=db_name)
+    res = db.delete_one(collection_name="knowledge",query={"id":id})
+    
+    if res==1:
+        return jsonify({"message":"başarılı bir şekilde silindi"}),200
+    else:
+        return jsonify({"error":"hata"}),500

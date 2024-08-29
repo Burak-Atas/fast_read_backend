@@ -60,21 +60,23 @@ def login():
 @app.before_request
 def auth_middleware():
     if request.path != "/login" and request.path != "/contact":
-        token = request.headers.get("token")
-        
+        print("sitek")
+        token = request.headers.get("token")        
         if token != None:
             decode_token= token_handler.decode_token(token=token)[0]   
             if type(decode_token)!=dict:
                 return jsonify({"error":"tekrar giriş yapınız",}),400
                     
             g.user_type = decode_token["role"]
+            print(decode_token)
             g.token = token
             g.user_name = decode_token["user_name"]
             if g.user_type == const.student :
                 g.level = decode_token["level"]
         else:
-            g.user_type = const.admin
-            g.user_name = "elvansurel"
+            print("kullanıcı yok")
+            return jsonify({"error":"tekrar giriş yapınız",}),400
+            
             
           #  return jsonify({"error":"yetkisiz erişim"})
 

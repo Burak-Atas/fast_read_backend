@@ -82,15 +82,21 @@ def gune_ait_egzersiz(day):
     if type(process) != dict:
         return jsonify({"error": "hatalı işlem yaptınız"}), 400  
     
-  
-    if int(day[-1])<int(process["day"][-1]):
-        return jsonify({"egzersiz": days["exercise"],"order":1,"order":len_exercise}), 200
+    day_digits = check_last_digits(day)
+    process_digits = check_last_digits(process["day"])
     
+    if day_digits[1] == process_digits[1]:
+        if day_digits[0]==process_digits[0]:
+            return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
+        elif day_digits[0]<=process_digits[0]:
+            return jsonify({"egzersiz": days["exercise"],"order":len_exercise}), 200
+            
+    elif day_digits[1] > process_digits[1]: 
+        return jsonify({"error":"tamamlanması gereken gün : "+process["day"]})
     
     if day!= process["day"]:
         return jsonify({"egzersiz": days["exercise"],"order":-1}), 200 
     
-    return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
 
 
 def check_last_digits(day):
@@ -179,21 +185,44 @@ def new_day():
     createdTime = datetime.now()
     date = createdTime.strftime("%Y-%m-%d")
     if process["okey"]:
-        print("deneme",int(process["day"][-2:]))
         if int(process["day"][-2:])>24:
             process = db.find_one(collection_name="users",query={"user_name":user_name})
             count = process["count"] + 1
             if count > 3:
                 return jsonify({"message":"daha fazla kurs hakkınız kalmadı lütfen yetkili kişi ile iletişime geçin"}),400
-            db.update_one(collection_name="users",query={"user_name":user_name},data={"count":count})
+            if count==1:     
+                now = datetime.now()
+                formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
+                data = {"count":count,"endDate":formatted_now}
+            else:
+                data = {"count":count}
+            db.update_one(collection_name="users",query={"user_name":user_name},data=data)
             return jsonify({"message":"kursu başarılı bir şekilde tamamladınız"}),200
         if date>=process["next_day_date"]:
             newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
             db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":"day2","okey":False})
             return jsonify({"message":"yeni güne geçebilirsiniz"}),200
     else:
-        return jsonify("egzersizleri tamamlayın"),200   
-        
+        return jsonify("egzersizleri tamamlayın"),200 
+
+@student_blueprint.route("/newcourse",methods=["POST"])
+def new_course():
+    user_name = g.user_name
+    
+    process = db.find_one(collection_name="process",query={"user_name":user_name})
+    users = db.find_one(collection_name="users",query={"user_name":user_name})
+    
+    if type(process)!=dict:
+        return jsonify({"error":"lütfen daha sonra tekrar deneyein"}),500
+    if type(users)!=dict:
+        return jsonify({"error":"lütfen daha sonra tekrar deneyein"}),500
+    createdTime = datetime.now()
+    newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
+    db.update_one(collection_name="process",query={"user_name":user_name},data={"now_exercise":0,"next_exercise":1,"day":"day1","next_day_date":newDate,"okey":False})
+    db.update_one(collection_name="users",query={"user_name":user_name},data={"tamamlanan_gun":0})
+    
+    return jsonify({"message":"kursa tekrara başlayabilirsiniz","kalan hak":3-users["count"]})
+
 
 @student_blueprint.route("/<string:day>/<string:name>/exerciseisover", methods=["POST"])
 def egzersiz_bitti(day,name):
@@ -297,4 +326,10 @@ def all_message():
         return jsonify({"message": "Henüz bir mesajınız yok"}), 404
 
 
-    
+
+@student_blueprint.route("/knowledge",methods = ["GET"])
+def knowledge():
+    db = MongoDB(url=db_url, db_name=db_name)
+    res = db.find_one(collection_name="knowledge", query={"publish":True})
+        
+    return jsonify(res["content"]), 200
