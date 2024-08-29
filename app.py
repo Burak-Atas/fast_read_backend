@@ -23,8 +23,15 @@ app.register_blueprint(student_blueprint, url_prefix='/student')
 app.register_blueprint(education_blueprint, url_prefix='/teacher')
 
 
-CORS(app)
 
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": "token"}})
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, token')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    return response
 
 @app.route('/login',methods=["POST"])
 def login():
@@ -59,9 +66,12 @@ def login():
     
 @app.before_request
 def auth_middleware():
+    print(request.headers.get("token"))
     if request.path != "/login" and request.path != "/contact":
         print("sitek")
-        token = request.headers.get("token")        
+        token = request.headers.get("token")  
+        print("token değeri",token)
+        print(request.headers)      
         if token != None:
             decode_token= token_handler.decode_token(token=token)[0]   
             if type(decode_token)!=dict:
