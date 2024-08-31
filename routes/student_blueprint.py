@@ -72,8 +72,9 @@ def hello():
 @student_blueprint.route("/<string:day>", methods=["GET"])
 def gune_ait_egzersiz(day):
     level = g.level
+    print("level",level)
     user_name = g.user_name
-    days = db.find_one(collection_name="days", query={"day": day})  
+    days = db.find_one(collection_name="days", query={"day": day,"level":int(level)})  
     
     if type(days) != dict:
         return jsonify({"error": "gün bulunamadı"}), 400  
