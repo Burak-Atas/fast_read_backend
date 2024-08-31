@@ -85,7 +85,8 @@ def gune_ait_egzersiz(day):
     
     day_digits = check_last_digits(day)
     process_digits = check_last_digits(process["day"])
-    
+    print("day digits",day_digits)
+    print("process",process_digits)
     if day_digits[1] == process_digits[1]:
         if day_digits[0]==process_digits[0]:
             return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
@@ -93,7 +94,8 @@ def gune_ait_egzersiz(day):
             return jsonify({"egzersiz": days["exercise"],"order":len_exercise}), 200
             
     elif day_digits[1] > process_digits[1]: 
-        return jsonify({"error":"tamamlanması gereken gün : "+process["day"]})
+        print("hata daydigtitn ads")
+        return jsonify({"error":"tamamlanması gereken gün : "+process["day"],"egzersiz":days["exercise"],"order":-1})
     
     if day!= process["day"]:
         return jsonify({"egzersiz": days["exercise"],"order":-1}), 200 
