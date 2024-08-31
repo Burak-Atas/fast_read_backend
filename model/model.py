@@ -113,11 +113,11 @@ class Process:
         self.level = level
         
 class Teacher:
-    def __init__(self, _id, user_name, password, phone_number,user_type,kayit_tarihi,token,name):
+    def __init__(self, _id, user_name, password, email,user_type,kayit_tarihi,token,name):
         self._id = _id
         self.user_name = user_name
         self.password = password
-        self.phone_number = phone_number
+        self.email = email
         self.user_type = user_type
         self.kayit_tarihi = kayit_tarihi
         self.token = token

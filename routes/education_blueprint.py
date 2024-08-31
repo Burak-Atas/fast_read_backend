@@ -26,8 +26,8 @@ education_blueprint = Blueprint('education_blueprint', __name__)
 
 @education_blueprint.before_request
 def check_user_type():
-    print(g.user_type)
-    if g.user_type != const.teacher and g.user_type != const.admin:
+    print("education",g.user_type)
+    if g.user_type ==const.student:
         return jsonify({"error": "yetkisiz erişim"}), 403
 
 
@@ -81,7 +81,8 @@ def user():
         for user in users:
             del user['_id']
             del user['token']
-            del user["user_type"]
+        
+        print(users)
         
         users_cursor.close()
         users_cursor.close()
@@ -183,7 +184,7 @@ def add_teacher():
     username = content["user_name"]
     password = content["password"]
     name = content["name"]
-    phoneNumber = content["phone_number"]
+    email = content["email"]
     
     db = MongoDB(db_name=db_name, url=db_url)
     
@@ -199,19 +200,18 @@ def add_teacher():
     userType = const.teacher
     
     createdTime = datetime.now()
-    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name).__dict__
+    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=password,email=email,user_name=username,user_type=userType,token=userToken,name=name).__dict__
     db.insert_one(collection_name="users",data=usr)
     return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username, "password": password,"token":userToken}), 200
 
 
-@education_blueprint.route("/deluser", methods=["DELETE"])
+@education_blueprint.route("/deluser", methods=["GET"])
 def del_user():
-
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
     
     name = request.headers.get("username").strip()
-    print("name:", name)
+    print("silinen kulalnıcı ismi:", name)
     
     if name is None or name == "":
         return jsonify({"message": "Kullanıcı adı belirtilmemiş."}), 400
@@ -237,34 +237,55 @@ def all_del_user():
     
     return jsonify(),200
 
-
-@education_blueprint.route("/updateuser/<string:old_name>", methods=["PUT"])
+@education_blueprint.route("/updateuser/<string:old_name>", methods=["POST"])
 def update_user(old_name):
     if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403  # Hata kodu değiştirildi
     
     content = request.get_json()
-    if content is None or ("new_username" not in content and "new_password" not in content):
+    if content is None or ("user_name" not in content and "password" not in content):
         return jsonify({"error": "Eksik bilgi"}), 400
     
-    new_username = content.get("new_username")
-    new_password = content.get("new_password")
+    #new_username = content.get("user_name")
+    new_password = content.get("password")
+    name = content.get("name")
+    phone_number = content.get("phone_number")
+    level = content.get("level")
     
-    query = {"username": old_name}
+    query = {"user_name": old_name}
+    print(old_name)
+    print("old_name",old_name)
+    print(name)
+    
     new_values = {}
-    if new_username:
-        new_values["$set"] = {"username": new_username}
-    if new_password:
-        new_values["$set"].update({"password": new_password})  # Update instead of overwrite
-    
-    db = MongoDB(db_name=db_name, url=db_url)
-    updated_user = db.update_one("users", query=query, new_values=new_values)
 
-    if updated_user:
+    # Mevcut bilgileri güncellemek için kontroller
+    """
+    if new_username:
+        new_values["username"] = new_username
+    """
+    if new_password:
+        new_values["password"] = new_password
+    if name:
+        new_values["name"] = name
+    if phone_number:
+        new_values["phone_number"] = phone_number
+    if level:
+        new_values["level"] = level
+
+    if not new_values:
+        return jsonify({"error": "Güncellenecek bilgi bulunamadı"}), 400
+    
+    print("new,values",new_values)
+    db = MongoDB(db_name=db_name, url=db_url)
+    updated_user = db.update_one(collection_name="users", query=query, data=new_values)
+  
+    print("update_user",updated_user)
+    if updated_user==1:
         return jsonify({"message": "Kullanıcı başarılı şekilde güncellendi"}), 200
     else:
-        return jsonify({"error": "Kullanıcı bulunamadı"}), 404
-
+        return jsonify({"error": "Kullanıcı güncellenirken hata oluştu"}), 400
+        
 
 @education_blueprint.route("/user/countuser",methods=["GET"])
 def count_user():
@@ -388,6 +409,8 @@ def send_message():
     
     header = content["header"]
     messages = content["content"]
+    user_name = content["user_name"]
+    
     
     current_datetime = datetime.now()
     current_date = current_datetime.date()
@@ -395,7 +418,7 @@ def send_message():
     
     db = MongoDB(url=db_url, db_name=db_name)   
 
-    data = Messages(header=header,sender=g.user_name, receiver=const.admin, content=messages, cender_date=current_date, date=current_time_str).__dict__
+    data = Messages(header=header,sender=g.user_name, receiver=user_name, content=messages, cender_date=current_date, date=current_time_str).__dict__
     
     db.insert_one(collection_name="messages", data=data)
     
@@ -512,11 +535,8 @@ def get_exercise():
     
 @education_blueprint.route("/getexercises", methods=["GET"])
 def get_exercises():
-    if g.user_type != const.admin:
-        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
-
     level = request.args.get('level')
-    print(level)
+    print("deneme elvei",level)
     try:
         level = int(level) if level is not None else None  # level parametresini int yap
     except ValueError:

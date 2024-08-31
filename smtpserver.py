@@ -15,8 +15,8 @@ class EmailVerification():
         self.konu = konu
         self.kimden = kimden
         self.context = ssl.create_default_context()
-        self.email_password = "oxpnfbisvcccjbud"    
-        self.email_sender = "noreply@teteatalk.com"
+        self.email_password = "pcdo ooqr oprq xkoq"    
+        self.email_sender = "firatshop5@gmail.com"
         self.email_reciver = email_reciver
         #self.em = EmailMessage()
         self.body = self.create_body()
@@ -66,6 +66,49 @@ class EmailVerification():
 
 # her kayıt yaptıracak kullanıcı için bir nesne üretilecek
 # gönderilen gönderilen kodu a.code ile bulabiliriz
+class EmailVerificationCode:
+    def __init__(self, email_receiver, subject, sender_name):
+        self.code = str(random_number())  # 6 haneli doğrulama kodu
+        self.subject = subject
+        self.sender_name = sender_name
+        self.context = ssl.create_default_context()
+        self.email_password = "pcdo ooqr oprq xkoq"  # E-posta şifresi
+        self.email_sender = "firatshop5@gmail.com"  # Gönderen e-posta adresi
+        self.email_receiver = email_receiver  # Alıcı e-posta adresi
+        self.body = self.create_body()  # E-posta içeriğini oluştur
+        self.em = MIMEMultipart()
+        self.em['From'] = 'İRİS AKADEMİ <{}>'.format(self.email_sender)
+        self.em['To'] = self.email_receiver
+        self.em['Subject'] = 'İRİS AKADEMİ BİLGİ MESAJI'
+        self.em.attach(MIMEText(self.body, 'html'))  # HTML formatında e-posta ekle
+        self.send_code()  # Kodu gönder
+
+    def create_body(self):
+        body = """
+        <!DOCTYPE html>
+        <html>
+        <body>
+            <div style="text-align: center; padding: 20px;">
+                <h2>e-posta doğrulama kodunuz</h2>
+                <p>{sender_name} tarafından gönderildi</p>
+                <h1 style="font-size: 36px; margin: 20px 0;">{code}</h1>
+                <p>Kodunuzu kimseyle paylaşmayın.</p>
+            </div>
+        </body>
+        </html>
+        """.format(sender_name=self.sender_name, code=self.code)
+        return body
+
+    def send_code(self):
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=self.context) as smtp:
+            smtp.login(self.email_sender, self.email_password)  # Giriş yap
+            smtp.sendmail(self.email_sender, self.email_receiver, self.em.as_string())  # E-postayı gönder
+        return self.code
+
+
+
+
+
 
 if __name__ == "__main__":
     a = EmailVerification("kimsesiz34km@gmail.com")
