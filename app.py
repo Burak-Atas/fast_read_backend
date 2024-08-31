@@ -24,14 +24,8 @@ app.register_blueprint(education_blueprint, url_prefix='/teacher')
 
 
 
-CORS(app, resources={r"/*": {"origins": "*", "allow_headers": "token"}})
+CORS(app)
 
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, token,username')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    return response
 
 @app.route('/login',methods=["POST"])
 def login():
