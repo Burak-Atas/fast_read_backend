@@ -207,7 +207,11 @@ def new_day():
         else:
             date>=process["next_day_date"]
             newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
-            db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":"day2","okey":False})
+            day = process["day"]
+            day_digits = check_last_digits(day)
+            new_day_digits = day_digits[0]+1
+            new_day = "day" + str(new_day_digits)
+            db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":new_day,"okey":False})
             return jsonify({"message":"yeni güne geçebilirsiniz"}),200
     else:
         return jsonify("egzersizleri tamamlayın"),200 
