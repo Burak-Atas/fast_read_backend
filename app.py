@@ -72,8 +72,8 @@ def login():
 @app.before_request
 def auth_middleware():
     if request.path != "/login" and request.path != "/contact" and request.path != "/sendcode" and request.path != "/teacher/updatepassword":
-        print("ubrada")
         token = request.headers.get("token")
+        print(token)
         if token != None:
             decode_token= token_handler.decode_token(token=token)[0]   
             if type(decode_token)!=dict:

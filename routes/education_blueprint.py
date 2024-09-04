@@ -28,7 +28,7 @@ education_blueprint = Blueprint('education_blueprint', __name__)
 def check_user_type():
     print("education",g.user_type)
     if g.user_type ==const.student:
-        return jsonify({"error": "yetkisiz erişim"}), 403
+        return jsonify({"error": "yetkisizdd erişim"}), 403
 
 
 @education_blueprint.route("/", methods=["POST"])
@@ -515,24 +515,29 @@ def del_task():
     """
     EGZERSİZ İŞELMLERİ
     """
-@education_blueprint.route("/getexercisedetails",methods=["POST"])
+@education_blueprint.route("/getexercisedetails", methods=["POST"])
 def get_exercise():
-    if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+    try:
+        # JSON verisini alın
+        exercise_data = request.get_json()
+        
+        db = MongoDB(db_name=db_name, url=db_url) 
+        cursor = db.find_many(collection_name="after_exercise", query=exercise_data)
+        exercises = [dict(exercise) for exercise in cursor]
 
-    exercise_data = request.get_json()
-    print(exercise_data)
-    
-    db = MongoDB(db_name=db_name, url=db_url) 
-    cursor = db.find_many(collection_name="after_exercise",query=exercise_data["formdata"])
-    exercises = [dict(exercise) for exercise in cursor]
+        # Her bir egzersiz verisinden '_id' alanını kaldırın
+        for ex in exercises:
+            ex.pop('_id', None)
+        
+        # JSON yanıtı döndürün
+        return jsonify(exercises), 200
 
-    
-    for ex in exercises:
-        del ex['_id']
-    
-    return jsonify(exercises), 200
-    
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+
 @education_blueprint.route("/getexercises", methods=["GET"])
 def get_exercises():
     level = request.args.get('level')

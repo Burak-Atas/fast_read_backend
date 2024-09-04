@@ -188,19 +188,22 @@ def new_day():
     createdTime = datetime.now()
     date = createdTime.strftime("%Y-%m-%d")
     if process["okey"]:
-        if int(process["day"][-2:])>24:
-            process = db.find_one(collection_name="users",query={"user_name":user_name})
-            count = process["count"] + 1
-            if count > 3:
-                return jsonify({"message":"daha fazla kurs hakkınız kalmadı lütfen yetkili kişi ile iletişime geçin"}),400
-            if count==1:     
-                now = datetime.now()
-                formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
-                data = {"count":count,"endDate":formatted_now}
-            else:
-                data = {"count":count}
-            db.update_one(collection_name="users",query={"user_name":user_name},data=data)
-            return jsonify({"message":"kursu başarılı bir şekilde tamamladınız"}),200
+        days_digits = check_last_digits(process["day"])
+        if days_digits[1]==2:
+            if days_digits[0]>24:
+                process = db.find_one(collection_name="users",query={"user_name":user_name})
+                count = process["count"] + 1
+                if count > 3:
+                    return jsonify({"message":"daha fazla kurs hakkınız kalmadı lütfen yetkili kişi ile iletişime geçin"}),400
+                if count==1:     
+                    now = datetime.now()
+                    formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
+                    data = {"count":count,"endDate":formatted_now}
+                else:
+                    data = {"count":count}
+                db.update_one(collection_name="users",query={"user_name":user_name},data=data)
+                return jsonify({"message":"kursu başarılı bir şekilde tamamladınız"}),200
+            print("deneme")
         if date>=process["next_day_date"]:
             newDate = (createdTime + timedelta(days=1)).strftime("%Y-%m-%d")
             db.update_one(collection_name="process",query={"user_name": user_name},data={"next_day_date":newDate,"next_exercise":1,"now_exercise":0,"day":"day2","okey":False})
