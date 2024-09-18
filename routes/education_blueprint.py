@@ -335,7 +335,7 @@ def upload_video():
         filename = video.filename 
         name = unique_id
         video.save(os.path.join("static", name))  
-        url =  SERVER_IP+"/static/"+name
+        url =  SERVER_IP+"static/"+name
         db = MongoDB(url=db_url,db_name=db_name)
         db.insert_one(collection_name="videos",data={
             "name":name,
@@ -657,8 +657,10 @@ def delete_knowledge():
     if g.user_type != const.admin:
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
-    id = request.headers.get("header")
+    id = request.headers.get("head")
     print(id)
+    print(id)
+    print(request.headers)
     if id == "":
         return jsonify({"error":"internal error"}),500
     db = MongoDB(url=db_url, db_name=db_name)

@@ -325,15 +325,27 @@ from bson import json_util
 
 @student_blueprint.route("/allmessages", methods=["GET"])
 def all_message():
-    messages_cursor = db.find_many(collection_name="messages", query={})    
+    # Query to find messages with receiver as 'all' or 'user_name'
+    query = {
+        "$or": [
+            {"user_name": "all"},
+            {"user_name": g.user_name}
+        ]
+    }
+    
+    # Find messages based on the query
+    messages_cursor = db.find_many(collection_name="messages", query=query)
+    
+    # Convert cursor to list
     messages = list(messages_cursor)
     messages_cursor.close()
+    
     if messages:
         # Convert ObjectId to string for each message
         for message in messages:
             message['_id'] = str(message['_id'])
         return json_util.dumps(messages), 200
-    else:     
+    else:
         return jsonify({"message": "Henüz bir mesajınız yok"}), 404
 
 
