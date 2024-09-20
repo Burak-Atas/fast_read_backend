@@ -159,7 +159,7 @@ def egzersiz(day,name):
         if not dnd :
             return jsonify({"error":"lütfen önceki egzersizleri tamamlayın"}),400    
         
-    exercise_data =db.find_one(collection_name="exercise",query={"name":name,"level":g.level})
+    exercise_data =db.find_one(collection_name="exercise",query={"name":name,"level":int(g.level)})
     
     data = exercise_data["data"]
 
@@ -246,7 +246,7 @@ def egzersiz_bitti(day,name):
     content["execise_day"]=day
 
     process = db.find_one(collection_name="process", query={"user_name": user_name})
-    day_exercise = db.find_one(collection_name="days", query={"day": day})
+    day_exercise = db.find_one(collection_name="days", query={"day": day,"level":int(g.level)})
     
     day_digits = check_last_digits(day)
     process_digits = check_last_digits(process["day"])
