@@ -159,7 +159,7 @@ def egzersiz(day,name):
         if not dnd :
             return jsonify({"error":"lütfen önceki egzersizleri tamamlayın"}),400    
         
-    exercise_data =db.find_one(collection_name="exercise",query={"name":name})
+    exercise_data =db.find_one(collection_name="exercise",query={"name":name,"level":g.level})
     
     data = exercise_data["data"]
 
