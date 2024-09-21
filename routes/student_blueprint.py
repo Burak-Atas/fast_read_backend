@@ -131,7 +131,9 @@ def egzersiz(day,name):
             print("burada")
             return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
         else:
-            now_exerscise=db.find_one(collection_name="exercise",query={"name":name})
+            print("reis")
+            
+            now_exerscise=db.find_one(collection_name="exercise",query={"name":name,"level":int(g.level)})
             data = now_exerscise["data"]
             return jsonify(data),200
     elif day_digits[1] > process_digits[1]: 
@@ -149,13 +151,11 @@ def egzersiz(day,name):
         return jsonify(data),200
         
     now_exerscise=db.find_one(collection_name="days",query={"day":day})
-    print("reis",now_exerscise)
     if type(now_exerscise)!=dict:
         return jsonify({"error":"egzersiz bulunamadı"}),400
     
     if day==control["day"]:
         dnd = find_exercise(now_exerscise["exercise"],name,exercise)
-        print("dnd",dnd)
         if not dnd :
             return jsonify({"error":"lütfen önceki egzersizleri tamamlayın"}),400    
         
