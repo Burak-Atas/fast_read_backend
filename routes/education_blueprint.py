@@ -670,3 +670,22 @@ def delete_knowledge():
         return jsonify({"message":"başarılı bir şekilde silindi"}),200
     else:
         return jsonify({"error":"hata"}),500
+    
+    
+    
+""" 
+    VACOBOLARY
+"""
+
+@education_blueprint.route("/getvocabolary", methods=["GET"])
+def get_vocabolary():
+    if g.user_type == const.student:
+        return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
+
+    db = MongoDB(url=db_url, db_name=db_name)
+    res = db.find_many(collection_name="vocabolary", query={})
+    cursor = []
+    for document in res:
+        document.pop('_id', None)  # _id alanını kaldır
+        cursor.append(document)
+    return jsonify(cursor), 200

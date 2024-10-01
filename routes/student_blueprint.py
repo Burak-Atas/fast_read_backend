@@ -135,6 +135,7 @@ def egzersiz(day,name):
             
             now_exerscise=db.find_one(collection_name="exercise",query={"name":name,"level":int(g.level)})
             data = now_exerscise["data"]
+            print(now_exerscise)
             return jsonify(data),200
     elif day_digits[1] > process_digits[1]: 
         return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
