@@ -55,23 +55,20 @@ def login():
         # Lazy migration: replace the legacy plaintext password with a hash.
         db.update_one(collection_name="users",query={"_id":user["_id"]},data={"password":hash_password(password)})
 
-    if user["user_type"]==const.student:
-        if user["activate"]==False:
+    if user.get("user_type")==const.student:
+        if user.get("activate") in (False, "False"):
             return jsonify({"message":"lütfen üyeliğinizin aktifliğini bekleyin"}),200
-        return jsonify({"message":"giriş başarılı","token":user["token"],"name":user["name"]}),200
-    
-    token = JWT_Token().generate_token_teacher(user_id=None,role=user["user_type"],name=user["name"],user_name=user["user_name"])
-    print("yeni toen",token)
-    print(user["user_type"])
-    if token =="":
-        return jsonify({"error":"lütfen daha sonra tekrar deneyiniz"}),400
-
-    res = db.update_one(collection_name="users",query={"user_name":user["user_name"]},data={"token":token})
-    if res == 1:
-        return jsonify({"message":"giriş başarılı","token":token,"name":user["name"]}),200
+        token = token_handler.generate_token(user_id=None,role=const.student,name=user.get("name"),user_name=user["user_name"],level=user.get("level"))
     else:
-        return jsonify({"error":"lütfen daha sonra tekrar deneyiniz"}),400
-    
+        token = token_handler.generate_token_teacher(user_id=None,role=user.get("user_type"),name=user.get("name"),user_name=user["user_name"])
+
+    # Kept for compatibility; auth relies on the JWT signature, not this field.
+    # Not checking modified_count: two logins in the same second yield the
+    # same token, which would be reported as "not modified".
+    db.update_one(collection_name="users",query={"_id":user["_id"]},data={"token":token})
+    return jsonify({"message":"giriş başarılı","token":token,"name":user.get("name")}),200
+
+
 PUBLIC_PATHS = {"/login", "/contact", "/sendcode", "/teacher/updatepassword"}
 
 
