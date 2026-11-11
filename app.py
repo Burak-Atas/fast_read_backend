@@ -12,6 +12,7 @@ from smtpserver import EmailVerification,EmailVerificationCode
 from model.model import User,Egzersiz,Story
 
 from jwtgenerate import JWT_Token
+from passwords import hash_password, verify_password
 
 db_url = config.DATABASE_URL
 db_name = config.DATABASE_NAME
@@ -29,28 +30,31 @@ CORS(app, origins=config.CORS_ORIGINS)
 @app.route('/login',methods=["POST"])
 def login():
     content = request.get_json()
-    if content is None:
-        return jsonify({"error":"eksik bilgi doldurunuz"})
-    
+    if not isinstance(content, dict):
+        return jsonify({"error":"eksik bilgi doldurunuz"}),400
+
     if "username" not in content or "password" not in content:
-        return jsonify({"error": "kullanıcı adı yada şifre eksik"})
+        return jsonify({"error": "kullanıcı adı yada şifre eksik"}),400
     
     user_name = content["username"]
-    password = content["password"]    
-    query = {
-        "user_name":user_name
-    }
-    print("logind")
+    password = content["password"]
+    if not isinstance(user_name, str) or not isinstance(password, str):
+        return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
 
     db = MongoDB(db_name=db_name,url=db_url)
-    user = db.find_one("users",query=query)
-    
+    user = db.find_one("users",query={"user_name":user_name})
+
     if type(user)!=dict:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
-    
-    if user["password"]!=password:
+
+    matches, needs_rehash = verify_password(user.get("password"), password)
+    if not matches:
         return jsonify({"error":"Kullanıcı adı yada şifre hatalı"}),400
-    
+
+    if needs_rehash:
+        # Lazy migration: replace the legacy plaintext password with a hash.
+        db.update_one(collection_name="users",query={"_id":user["_id"]},data={"password":hash_password(password)})
+
     if user["user_type"]==const.student:
         if user["activate"]==False:
             return jsonify({"message":"lütfen üyeliğinizin aktifliğini bekleyin"}),200
@@ -146,7 +150,7 @@ def update_password():
     if find_user:
         found_code = find_user["code"]
         if content["code"]==found_code:
-            updated = db.update_one(collection_name="users",query={"email":email},data={"password":content["password"]})
+            updated = db.update_one(collection_name="users",query={"email":email},data={"password":hash_password(content["password"])})
             if updated==1:
                 deleted = db.delete_one(collection_name="update_password",query={"email":email})
                 if deleted == 1:    

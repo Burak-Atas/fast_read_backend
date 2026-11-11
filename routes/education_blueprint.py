@@ -4,6 +4,7 @@ import config
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
+from passwords import hash_password
 from model.model import Story,Egzersiz,Process,User,Video,Messages,Task,Teacher
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -23,22 +24,17 @@ userId = 0
 
 education_blueprint = Blueprint('education_blueprint', __name__)
 
+
+def _strip_private_fields(user):
+    for field in ("_id", "token", "password"):
+        user.pop(field, None)
+    return user
+
 @education_blueprint.before_request
 def check_user_type():
     print("education",g.user_type)
     if g.user_type ==const.student:
         return jsonify({"error": "yetkisizdd erişim"}), 403
-
-
-@education_blueprint.route("/", methods=["POST"])
-def teach():
-    content = request.get_json()
-    if content is None or "username" not in content or "password" not in content:
-        return jsonify({"error": "Eksik bilgi"}), 400
-    username = content["username"]
-    password = content["password"]
-    
-    return jsonify({"username": username, "password": password}), 200
 
 
 """
@@ -78,8 +74,7 @@ def user():
         users = [dict(user) for user in users_cursor]
         
         for user in users:
-            del user['_id']
-            del user['token']
+            _strip_private_fields(user)
         
         print(users)
         
@@ -91,8 +86,7 @@ def user():
     users = [dict(user) for user in users_cursor]
     
     for user in users:
-        del user['_id']
-        del user['token']
+        _strip_private_fields(user)
     
     users_cursor.close()
     return jsonify(users), 200
@@ -138,11 +132,11 @@ def add_user():
 
     teacher_name = g.user_name
 
-    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=password,phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0,last_seen_data=None).__dict__
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=hash_password(password),phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0,last_seen_data=None).__dict__
     usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate,okey=False,level=level).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
-    return jsonify({"message":"kullanıcı eklendi","username": username, "password": password,"token":userToken}), 200
+    return jsonify({"message":"kullanıcı eklendi","username": username,"token":userToken}), 200
 
 @education_blueprint.route("/user/isactivate",methods=["POST"])
 def activated():
@@ -199,9 +193,9 @@ def add_teacher():
     userType = const.teacher
     
     createdTime = datetime.now()
-    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=password,email=email,user_name=username,user_type=userType,token=userToken,name=name).__dict__
+    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=hash_password(password),email=email,user_name=username,user_type=userType,token=userToken,name=name).__dict__
     db.insert_one(collection_name="users",data=usr)
-    return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username, "password": password,"token":userToken}), 200
+    return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username,"token":userToken}), 200
 
 
 @education_blueprint.route("/deluser", methods=["GET"])
@@ -264,7 +258,9 @@ def update_user(old_name):
         new_values["username"] = new_username
     """
     if new_password:
-        new_values["password"] = new_password
+        if not isinstance(new_password, str):
+            return jsonify({"error": "Eksik bilgi"}), 400
+        new_values["password"] = hash_password(new_password)
     if name:
         new_values["name"] = name
     if phone_number:
