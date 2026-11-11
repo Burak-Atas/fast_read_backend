@@ -1,8 +1,34 @@
+import threading
+
 import pymongo
+
+# MongoClient is thread-safe and maintains its own connection pool, so one
+# client per URL is shared by the whole process instead of one per request.
+client_factory = pymongo.MongoClient
+_clients = {}
+_clients_lock = threading.Lock()
+
+
+def get_client(url):
+    client = _clients.get(url)
+    if client is None:
+        with _clients_lock:
+            client = _clients.get(url)
+            if client is None:
+                client = client_factory(url)
+                _clients[url] = client
+    return client
+
+
+def reset_clients():
+    """Drop cached clients (used by tests)."""
+    with _clients_lock:
+        _clients.clear()
+
 
 class MongoDB:
     def __init__(self, url, db_name):
-        self.client = pymongo.MongoClient(url)
+        self.client = get_client(url)
         self.db = self.client[db_name]
         
     def insert_one(self, collection_name, data):
