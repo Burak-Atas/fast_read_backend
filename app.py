@@ -100,8 +100,15 @@ def auth_middleware():
 
 @app.route('/contact',methods=["POST"])
 def index():
-    content = request.get_json()["formData"]
-    EmailVerification(config.CONTACT_EMAIL,konu=content["subject"],kimden=content["email"])
+    content = request.get_json(silent=True)
+    content = content.get("formData") if isinstance(content, dict) else None
+    if not isinstance(content, dict) or not content.get("subject") or not content.get("email"):
+        return jsonify({"error":"eksik bilgi doldurunuz"}),400
+    try:
+        EmailVerification(config.CONTACT_EMAIL,konu=content["subject"],kimden=content["email"])
+    except Exception:
+        app.logger.exception("Failed to send contact email")
+        return jsonify({"error":"sunucu hatası"}),500
     return jsonify({"message":"mesajınız gönderildi"}),200
 
 RESET_COLLECTION = "update_password"

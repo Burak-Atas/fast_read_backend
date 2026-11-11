@@ -25,6 +25,12 @@ userId = 0
 education_blueprint = Blueprint('education_blueprint', __name__)
 
 
+def _json_body():
+    """Request JSON as a dict, or None if missing/invalid."""
+    content = request.get_json(silent=True)
+    return content if isinstance(content, dict) else None
+
+
 def _strip_private_fields(user):
     for field in ("_id", "token", "password"):
         user.pop(field, None)
@@ -57,8 +63,9 @@ def first_dell_user():
     one_year_ago = datetime.now() - timedelta(days=365)
 
     for user in users:
-        if user["kayit_tarihi"] < one_year_ago:
-            user_name = user["user_name"]
+        registered = user.get("kayit_tarihi")
+        if isinstance(registered, datetime) and registered < one_year_ago:
+            user_name = user.get("user_name")
             db.delete_one(collection_name="users", query={"user_name": user_name})
 
     users_cursor.close()
@@ -79,7 +86,6 @@ def user():
         
         
         users_cursor.close()
-        users_cursor.close()
         return jsonify(users), 200   
     
     users_cursor = db.find_many(collection_name="users", query=None)
@@ -94,14 +100,18 @@ def user():
 
 @education_blueprint.route("/adduser", methods=["POST"])
 def add_user():
-    content = request.get_json()
-    if content is None or "user_name" not in content or "password" not in content:
+    content = _json_body()
+    if content is None or not isinstance(content.get("user_name"), str) or not isinstance(content.get("password"), str):
+        return jsonify({"error": "Eksik bilgi"}), 400
+    if "name" not in content or "level" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
     
     username = content["user_name"].strip()
     password = content["password"].strip()
+    if not username or not password:
+        return jsonify({"error": "Eksik bilgi"}), 400
     name = content["name"]
-    phoneNumber = content["phone_number"]
+    phoneNumber = content.get("phone_number")
     level = content["level"]
     
     db = MongoDB(db_name=db_name, url=db_url)
@@ -141,8 +151,10 @@ def activated():
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
-    content = request.get_json()
-    user_name = content["user_name"]
+    content = _json_body()
+    user_name = content.get("user_name") if content else None
+    if not isinstance(user_name, str) or not user_name:
+        return jsonify({"error": "Eksik bilgi"}), 400
 
     db = MongoDB(db_name=db_name, url=db_url)
     users = db.find_one(collection_name="users",query={"user_name":user_name})
@@ -151,7 +163,7 @@ def activated():
         return jsonify({"error": "kullanıcı_adı  bulunamadı"}), 400
     
     
-    if users["activate"]=="True":
+    if users.get("activate") in (True, "True"):
         return jsonify({"message":"kullanıcı zaten aktif"}),200
     
     activate = True
@@ -165,14 +177,16 @@ def add_teacher():
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
-    content = request.get_json()
-    if content is None or "user_name" not in content or "password" not in content:
+    content = _json_body()
+    if content is None or not isinstance(content.get("user_name"), str) or not isinstance(content.get("password"), str):
+        return jsonify({"error": "Eksik bilgi"}), 400
+    if not content["user_name"] or not content["password"] or "name" not in content or not isinstance(content.get("email"), str):
         return jsonify({"error": "Eksik bilgi"}), 400
     
     username = content["user_name"]
     password = content["password"]
     name = content["name"]
-    email = content["email"]
+    email = content["email"].strip()
     
     db = MongoDB(db_name=db_name, url=db_url)
     
@@ -197,9 +211,9 @@ def del_user():
     if g.user_type != const.admin:
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
-    name = request.headers.get("username").strip()
+    name = (request.headers.get("username") or "").strip()
     
-    if name is None or name == "":
+    if name == "":
         return jsonify({"message": "Kullanıcı adı belirtilmemiş."}), 400
     
     query = {"user_name": name}
@@ -228,7 +242,7 @@ def update_user(old_name):
     if g.user_type != const.admin:
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403  # Hata kodu değiştirildi
     
-    content = request.get_json()
+    content = _json_body()
     if content is None or ("user_name" not in content and "password" not in content):
         return jsonify({"error": "Eksik bilgi"}), 400
     
@@ -247,9 +261,10 @@ def update_user(old_name):
     if new_username:
         new_values["username"] = new_username
     """
-    if new_password:
-        if not isinstance(new_password, str):
-            return jsonify({"error": "Eksik bilgi"}), 400
+    # Empty or missing password keeps the existing (hashed) password.
+    if new_password is not None and not isinstance(new_password, str):
+        return jsonify({"error": "Eksik bilgi"}), 400
+    if new_password and new_password.strip():
         new_values["password"] = hash_password(new_password)
     if name:
         new_values["name"] = name
@@ -286,15 +301,9 @@ def count_user():
 
 @education_blueprint.route("/addeducation",methods=["POST"])
 def add_education():
-    content = request.get_json()
-    
-    day = content["day"]
-    
-    #egzersiizn içinde egzersiz ismi ,hızı ve sayısı olmalıdır
-    egzersiz = content["egzersiz"]
-    
-    db = MongoDB(url=db_url,db_name=db_name)
-    db.insert_one("egzersiz",)
+    # Previously crashed on every call (insert_one without data) and
+    # returned nothing. Not implemented.
+    return jsonify({"error": "bu özellik henüz desteklenmiyor"}), 501
     
 
 
@@ -311,6 +320,10 @@ def upload_video():
 
     if video.filename == '':
         return jsonify({"error": "No selected video"}), 400
+
+    if not SERVER_IP:
+        current_app.logger.error("SERVER_IP is not configured")
+        return jsonify({"error": "sunucu hatası"}), 500
 
     unique_id = str(uuid.uuid4())
 
@@ -342,7 +355,9 @@ def videos():
 
 @education_blueprint.route("/video/<string:name>",methods=["GET"])
 def get_video(name):
-    query = {"video_name":name}
+    # upload_video stores "name"/"url"; "video_name"/"video_url" kept for
+    # older documents.
+    query = {"$or": [{"name": name}, {"video_name": name}]}
        
     db = MongoDB(url=db_url,db_name=db_name)
     videos = db.find_one(collection_name="videos",query=query)
@@ -350,13 +365,13 @@ def get_video(name):
     if type(videos)!=dict:
         return jsonify({"error":"video bulunamadı"}),400
 
-    return jsonify({"video_url":videos["video_url"]}),200
+    return jsonify({"video_url":videos.get("url") or videos.get("video_url")}),200
 
 @education_blueprint.route("/delvideo", methods=["DELETE"])
 def del_video():
     name = request.headers.get("name")
     
-    if name=="":
+    if not name:
         return jsonify({"error": "Video adı belirtilmedi."}), 400
     
     db = MongoDB(url=db_url, db_name=db_name)
@@ -385,8 +400,8 @@ def del_video():
 
 @education_blueprint.route("/sendmessage",methods=["POST"])
 def send_message():
-    content = request.get_json()
-    if "content" not in content or "header" not in content:
+    content = _json_body()
+    if content is None or "content" not in content or "header" not in content or "user_name" not in content:
         return jsonify({"error":"Hatalı header"}), 400
     
     header = content["header"]
@@ -426,7 +441,7 @@ def message():
 @education_blueprint.route("/delmessage", methods=["DELETE"])
 def del_message():
     header = request.headers.get("header")
-    if header == "":
+    if not header:
         return jsonify({"error": "Hatalı header"}), 400
 
     db = MongoDB(url=db_url, db_name=db_name)
@@ -463,8 +478,8 @@ def calendar():
     
 @education_blueprint.route("/addtask",methods=["POST"])
 def add_task():
-    content = request.get_json()
-    if "content" not in content or "date" not in content:
+    content = _json_body()
+    if content is None or not isinstance(content.get("content"), str) or not isinstance(content.get("date"), str):
         return jsonify({"error":"Hatalı işlem"}), 400
     
     date = content["date"].strip()  
@@ -546,13 +561,17 @@ def select_text():
     if g.user_type==const.student:
         return jsonify({"error": "Lütfen admin veya öğretmen hesabı ile giriş yapınız"}), 403
 
-    content = request.get_json()
+    content = _json_body()
+    if content is None:
+        return jsonify({"error": "Eksik bilgi"}), 400
     
     db = MongoDB(db_name=db_name, url=db_url)
     
     cursor_all = db.find_one(collection_name="exercise",query=content)
+    if type(cursor_all) != dict:
+        return jsonify({"error": "egzersiz bulunamadı"}), 404
     
-    return jsonify(cursor_all["data"]),200
+    return jsonify(cursor_all.get("data")),200
     
 
 
@@ -566,8 +585,10 @@ def set_knowledge():
     if g.user_type != const.admin:
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
     
+    content = _json_body()
+    if content is None:
+        return jsonify({"error": "Eksik bilgi"}), 400
     try:
-        content = request.get_json()
         content["id"] = str(uuid.uuid4())  # Add a unique ID to the content
         knowledge = Knowledge(**content)
     except ValidationError as e:
@@ -634,7 +655,7 @@ def delete_knowledge():
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
     id = request.headers.get("head")
-    if id == "":
+    if not id:
         return jsonify({"error":"internal error"}),500
     db = MongoDB(url=db_url, db_name=db_name)
     res = db.delete_one(collection_name="knowledge",query={"id":id})
