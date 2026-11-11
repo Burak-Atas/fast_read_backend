@@ -1,62 +1,43 @@
 import jwt
 import config
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+TOKEN_LIFETIME = timedelta(days=31)
+
 
 class JWT_Token():
-    
+
     secret_key = config.SECRET_KEY
     algorithm = "HS256"
 
-    def generate_token(self, user_id, role, name, user_name,level):
-        token_exp = datetime.utcnow() + timedelta(days=31)
-        secret_key = self.secret_key
-        token = jwt.encode({'user_id': user_id, 'role': role,"name":name, "level":level,'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
-
+    def generate_token(self, user_id, role, name, user_name, level):
+        token_exp = datetime.now(timezone.utc) + TOKEN_LIFETIME
+        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, "level": level, 'user_name': user_name, 'exp': token_exp}, self.secret_key, algorithm=self.algorithm)
         return token
+
     def generate_token_teacher(self, user_id, role, name, user_name):
-        token_exp = datetime.utcnow() + timedelta(days=31)
-        secret_key = self.secret_key
-        token = jwt.encode({'user_id': user_id, 'role': role,"name":name, 'user_name': user_name, 'exp': token_exp}, secret_key, algorithm=self.algorithm)
-
+        token_exp = datetime.now(timezone.utc) + TOKEN_LIFETIME
+        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, 'user_name': user_name, 'exp': token_exp}, self.secret_key, algorithm=self.algorithm)
         return token
-
 
     def verify_token(self, token):
-        decoded_token = self.decode_token(token)
-        if decoded_token is None:
-            return False
-        else:
-            return True
+        payload, _ = self.decode_token(token)
+        return payload is not None
 
     def decode_token(self, token):
-        msg = ""
-        secret_key = self.secret_key
-        algorithm = self.algorithm
+        """Decode a token.
 
+        Always returns a (payload, error) tuple: (dict, None) on success,
+        (None, message) on failure.
+        """
         try:
-            decoded_token = jwt.decode(token, secret_key, algorithms=[algorithm])
-            return decoded_token,msg
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
         except jwt.ExpiredSignatureError:
-            msg = 'Token has expired'
-            return msg
+            return None, 'Token has expired'
         except jwt.InvalidSignatureError:
-            msg = 'Token has invalid signature'
-            return msg
-        except jwt.DecodeError:
-            msg = 'Error decoding token'
-            return msg
-
-   
-if __name__ == "__main__":
-        
-    jwt_handler = JWT_Token()
-    tokens = jwt_handler.generate_token("user123", "admin", "John", "Doe", "john@example.com")
-    print("Access Token:", tokens['access_token'])
-    print("Refresh Token:", tokens['refresh_token'])
-
-    # Yenileme tokeni ile erişim tokenini yenileme
-    new_access_token = jwt_handler.refresh_access_token(tokens['refresh_token'])
-    if new_access_token:
-        print("New Access Token:", new_access_token['access_token'])
-    else:
-        print("Access Token could not be refreshed")
+            return None, 'Token has invalid signature'
+        except jwt.InvalidTokenError:
+            return None, 'Error decoding token'
+        if not isinstance(payload, dict):
+            return None, 'Error decoding token'
+        return payload, None

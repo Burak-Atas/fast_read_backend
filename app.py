@@ -68,23 +68,28 @@ def login():
     else:
         return jsonify({"error":"lütfen daha sonra tekrar deneyiniz"}),400
     
+PUBLIC_PATHS = {"/login", "/contact", "/sendcode", "/teacher/updatepassword"}
+
+
 @app.before_request
 def auth_middleware():
-    if request.path != "/login" and request.path != "/contact" and request.path != "/sendcode" and request.path != "/teacher/updatepassword":
-        token = request.headers.get("token")
-        print(token)
-        if token != None:
-            decode_token= token_handler.decode_token(token=token)[0]   
-            if type(decode_token)!=dict:
-                return jsonify({"error":"tekrar giriş yapınız",}),400
-                    
-            g.user_type = decode_token["role"]
-            g.token = token
-            g.user_name = decode_token["user_name"]
-            if g.user_type == const.student :
-                g.level = decode_token["level"]
-        else:
-            return jsonify({"error":"yetkisiz erişim"})
+    # CORS preflight requests never carry the token header.
+    if request.method == "OPTIONS" or request.path in PUBLIC_PATHS:
+        return None
+
+    token = request.headers.get("token")
+    if not token:
+        return jsonify({"error":"yetkisiz erişim"}),401
+
+    payload, _error = token_handler.decode_token(token=token)
+    if payload is None or "role" not in payload or "user_name" not in payload:
+        return jsonify({"error":"tekrar giriş yapınız"}),401
+
+    g.user_type = payload["role"]
+    g.token = token
+    g.user_name = payload["user_name"]
+    if g.user_type == const.student:
+        g.level = payload.get("level")
 
 
 
