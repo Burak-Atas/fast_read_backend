@@ -1,4 +1,8 @@
+import hmac
+from datetime import datetime, timedelta, timezone
+
 from flask import Flask, jsonify, request,g,abort
+from pymongo import ReturnDocument
 from flask_cors import CORS
 from routes.student_blueprint import student_blueprint
 from routes.education_blueprint import education_blueprint
@@ -100,69 +104,92 @@ def index():
     EmailVerification(config.CONTACT_EMAIL,konu=content["subject"],kimden=content["email"])
     return jsonify({"message":"mesajınız gönderildi"}),200
 
+RESET_COLLECTION = "update_password"
+RESET_CODE_TTL = timedelta(minutes=10)
+RESET_CODE_MAX_TRIES = 3
+
+
+def _utcnow():
+    # Naive UTC, matching what PyMongo returns for stored datetimes.
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @app.route('/sendcode',methods=["POST"])
 def send_code():
-    content = request.get_json()
-    email = content["email"].strip()
-    db = MongoDB(url=db_url,db_name=db_name)
+    content = request.get_json(silent=True)
+    email = content.get("email") if isinstance(content, dict) else None
+    if not isinstance(email, str) or not email.strip():
+        return jsonify({"message":"lütfen mailiniz kontrol ediniz"}),400
+    email = email.strip()
 
-    users = db.find_one(collection_name="users",query={"email":email})    
-    
+    db = MongoDB(url=db_url,db_name=db_name)
+    users = db.find_one(collection_name="users",query={"email":email})
     if type(users)!=dict:
         return jsonify({"message":"lütfen mailiniz kontrol ediniz"}),400
-    
-    code = EmailVerificationCode(email_receiver=email,subject="şifre güncelleme kodu",sender_name="GELISTRİO").send_code()
-    print(code)
 
-    user = db.find_one("update_password",{"email":email})
-    if user== None:
-        inserted = db.insert_one("update_password",{"code":code,"email":email,"try":3})
-        if inserted:
-            return jsonify({"message":"mesajınız gönderildi"}),200
-        else:
-            return jsonify({"error":"sunucu hatası"}),500
-    else:
-        inserted = db.update_one("update_password",{"email":email},{"code":code,"email":email})
-        if inserted==1:
-            return jsonify({"message":"doğrulama kodunuz gönderildi lütfen mailinizi kontrol edin"}),200
-        else:
-            return jsonify({"error":"sunucu hatası"}),500
+    try:
+        code = EmailVerificationCode(email_receiver=email,subject="şifre güncelleme kodu",sender_name="GELISTRİO").code
+    except Exception:
+        app.logger.exception("Failed to send password reset email")
+        return jsonify({"error":"sunucu hatası"}),500
 
-
+    # A new code replaces any previous one and resets the try counter.
+    db.delete_many(RESET_COLLECTION,{"email":email})
+    inserted = db.insert_one(RESET_COLLECTION,{"code":code,"email":email,"try":RESET_CODE_MAX_TRIES,"created_at":_utcnow()})
+    if inserted:
+        return jsonify({"message":"doğrulama kodunuz gönderildi lütfen mailinizi kontrol edin"}),200
+    return jsonify({"error":"sunucu hatası"}),500
 
 
 @app.route("/teacher/updatepassword",methods=["POST"])
 def update_password():
-    content = request.get_json()["formData"]
-    print(content)
-    
-    email = content["email"].strip()
-    
-    if content["password"]!=content["rpassword"]:
-        return jsonify({"error":"şifreler eşleşmiyor"}),400
-    
-    db = MongoDB(url=db_url,db_name=db_name)
-    find_user = db.find_one(collection_name="update_password",query={"email":email})
+    content = request.get_json(silent=True)
+    content = content.get("formData") if isinstance(content, dict) else None
+    if not isinstance(content, dict):
+        return jsonify({"error":"eksik bilgi doldurunuz"}),400
 
-    if find_user:
-        found_code = find_user["code"]
-        if content["code"]==found_code:
-            updated = db.update_one(collection_name="users",query={"email":email},data={"password":hash_password(content["password"])})
-            if updated==1:
-                deleted = db.delete_one(collection_name="update_password",query={"email":email})
-                if deleted == 1:    
-                    return jsonify({"message":"şifreniz başarılı bir şekilde güncellendi"}),200
-                return jsonify({"message":"daha sonra tekrar deneyiniz"}),200
-            else:
-                return jsonify({"error":"şifreniz  güncellenirken hata oluştu"}),400
-        else:
-            updated = db.update_one(collection_name="updata_password",query={"email":email},data={"try":find_user["try"]-1})
-            if update_password==1:
-                return jsonify({"message":"hatalı kod girdiniz","try":find_user["try"]-1})
-            else:
-                return jsonify({"error":"şifreniz  güncellenirken hata oluştu"}),400
-    else:
-        return jsonify({"error":"lütfen tekrar kod alınız "}),400       
-                
+    email = content.get("email")
+    password = content.get("password")
+    rpassword = content.get("rpassword")
+    code = content.get("code")
+    if not all(isinstance(v, str) and v for v in (email, password, rpassword, code)):
+        return jsonify({"error":"eksik bilgi doldurunuz"}),400
+    email = email.strip()
+    code = code.strip()
+
+    if password != rpassword:
+        return jsonify({"error":"şifreler eşleşmiyor"}),400
+
+    db = MongoDB(url=db_url,db_name=db_name)
+    record = db.find_one(collection_name=RESET_COLLECTION,query={"email":email})
+    if not record:
+        return jsonify({"error":"lütfen tekrar kod alınız "}),400
+
+    created_at = record.get("created_at")
+    tries = record.get("try", 0)
+    if not isinstance(created_at, datetime) or _utcnow() - created_at > RESET_CODE_TTL or not isinstance(tries, int) or tries <= 0:
+        db.delete_one(collection_name=RESET_COLLECTION,query={"_id":record["_id"]})
+        return jsonify({"error":"kodun süresi doldu lütfen tekrar kod alınız"}),400
+
+    if not hmac.compare_digest(str(record.get("code", "")).encode("utf-8"), code.encode("utf-8")):
+        # Atomic decrement so parallel requests cannot exceed the limit.
+        updated = db.db[RESET_COLLECTION].find_one_and_update(
+            {"_id":record["_id"],"try":{"$gt":0}},
+            {"$inc":{"try":-1}},
+            return_document=ReturnDocument.AFTER,
+        )
+        remaining = updated["try"] if updated else 0
+        if remaining <= 0:
+            db.delete_one(collection_name=RESET_COLLECTION,query={"_id":record["_id"]})
+            return jsonify({"error":"çok fazla hatalı deneme yaptınız lütfen tekrar kod alınız","try":0}),400
+        return jsonify({"error":"hatalı kod girdiniz","try":remaining}),400
+
+    updated = db.update_one(collection_name="users",query={"email":email},data={"password":hash_password(password)})
+    db.delete_one(collection_name=RESET_COLLECTION,query={"_id":record["_id"]})
+    if updated==1:
+        return jsonify({"message":"şifreniz başarılı bir şekilde güncellendi"}),200
+    return jsonify({"error":"şifreniz  güncellenirken hata oluştu"}),400
+
+
 if __name__ == '__main__':
     app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)

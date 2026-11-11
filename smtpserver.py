@@ -2,16 +2,17 @@ import config
 from email.message import EmailMessage
 import ssl
 import smtplib
-import random
+import secrets
+import html
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 def random_number():
-    return random.randint(100000, 999999)
+    # Cryptographically secure 6-digit code.
+    return 100000 + secrets.randbelow(900000)
 
 class EmailVerification():
     def __init__(self,email_reciver,konu,kimden):
-        self.code = str(random_number())
         self.konu = konu
         self.kimden = kimden
         self.context = ssl.create_default_context()
@@ -55,7 +56,7 @@ class EmailVerification():
                 </div>
             </tbody>
             </html>
-        """.format(self.kimden,self.konu,self.email_reciver)
+        """.format(html.escape(str(self.kimden)),html.escape(str(self.konu)))
         return body
 
     def send_code(self):
