@@ -1,9 +1,10 @@
 import jwt
+import config
 from datetime import datetime, timedelta
 
 class JWT_Token():
     
-    secret_key = '2889b2b99b0235aff49c4246e857fd7396cc88fd1b38718b1f4d8de6807fa95b'
+    secret_key = config.SECRET_KEY
     algorithm = "HS256"
 
     def generate_token(self, user_id, role, name, user_name,level):

@@ -6,12 +6,11 @@ from datetime import datetime,timedelta
 
 from model.model import Messages
 import const
-from dotenv import dotenv_values
+import config
 
 
-env_values = dotenv_values()
-db_url = env_values.get("DATABASE_URL")
-db_name = env_values.get("DATABASE_NAME")
+db_url = config.DATABASE_URL
+db_name = config.DATABASE_NAME
 
 
 

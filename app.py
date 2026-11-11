@@ -6,16 +6,15 @@ import const
 app = Flask(__name__)
 
 from db.db import MongoDB
-from dotenv import dotenv_values
+import config
 from model import model
 from smtpserver import EmailVerification,EmailVerificationCode
 from model.model import User,Egzersiz,Story
 
 from jwtgenerate import JWT_Token
 
-env_values = dotenv_values()
-db_url = env_values.get("DATABASE_URL")
-db_name = env_values.get("DATABASE_NAME")
+db_url = config.DATABASE_URL
+db_name = config.DATABASE_NAME
 
 token_handler= JWT_Token()
 
@@ -24,7 +23,7 @@ app.register_blueprint(education_blueprint, url_prefix='/teacher')
 
 
 
-CORS(app)
+CORS(app, origins=config.CORS_ORIGINS)
 
 
 @app.route('/login',methods=["POST"])
@@ -92,7 +91,7 @@ def auth_middleware():
 @app.route('/contact',methods=["POST"])
 def index():
     content = request.get_json()["formData"]
-    EmailVerification("batas219@gmail.com",konu=content["subject"],kimden=content["email"])
+    EmailVerification(config.CONTACT_EMAIL,konu=content["subject"],kimden=content["email"])
     return jsonify({"message":"mesajınız gönderildi"}),200
 
 @app.route('/sendcode',methods=["POST"])
@@ -160,4 +159,4 @@ def update_password():
         return jsonify({"error":"lütfen tekrar kod alınız "}),400       
                 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)

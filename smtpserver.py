@@ -1,4 +1,4 @@
-import os
+import config
 from email.message import EmailMessage
 import ssl
 import smtplib
@@ -15,8 +15,8 @@ class EmailVerification():
         self.konu = konu
         self.kimden = kimden
         self.context = ssl.create_default_context()
-        self.email_password = "pcdo ooqr oprq xkoq"    
-        self.email_sender = "firatshop5@gmail.com"
+        self.email_password = config.EMAIL_PASSWORD
+        self.email_sender = config.EMAIL_SENDER
         self.email_reciver = email_reciver
         #self.em = EmailMessage()
         self.body = self.create_body()
@@ -72,8 +72,8 @@ class EmailVerificationCode:
         self.subject = subject
         self.sender_name = sender_name
         self.context = ssl.create_default_context()
-        self.email_password = "pcdo ooqr oprq xkoq"  # E-posta şifresi
-        self.email_sender = "firatshop5@gmail.com"  # Gönderen e-posta adresi
+        self.email_password = config.EMAIL_PASSWORD
+        self.email_sender = config.EMAIL_SENDER
         self.email_receiver = email_receiver  # Alıcı e-posta adresi
         self.body = self.create_body()  # E-posta içeriğini oluştur
         self.em = MIMEMultipart()
@@ -104,19 +104,3 @@ class EmailVerificationCode:
             smtp.login(self.email_sender, self.email_password)  # Giriş yap
             smtp.sendmail(self.email_sender, self.email_receiver, self.em.as_string())  # E-postayı gönder
         return self.code
-
-
-
-
-
-
-if __name__ == "__main__":
-    a = EmailVerification("kimsesiz34km@gmail.com")
-
-    print("e mail adresinize gönderilen kodu giriniz")
-    for i in range(5):
-        code = input("Code: ")
-        if code == a.code:
-            print("eposta doğrulama başarılı")
-        else:
-            print("hatalı kod")

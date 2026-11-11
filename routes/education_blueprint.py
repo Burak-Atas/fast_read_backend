@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, g
 from db.db import MongoDB
-from dotenv import dotenv_values
+import config
 import const
 from db.db import MongoDB
 from jwtgenerate import JWT_Token
@@ -12,10 +12,9 @@ import uuid
 
 import time
 
-env_values = dotenv_values()
-db_url = env_values.get("DATABASE_URL")
-db_name = env_values.get("DATABASE_NAME")
-SERVER_IP = env_values.get("SERVER_IP")
+db_url = config.DATABASE_URL
+db_name = config.DATABASE_NAME
+SERVER_IP = config.SERVER_IP
 
 
 
