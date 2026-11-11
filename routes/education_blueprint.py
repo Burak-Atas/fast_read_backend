@@ -32,9 +32,11 @@ def _strip_private_fields(user):
 
 @education_blueprint.before_request
 def check_user_type():
-    print("education",g.user_type)
-    if g.user_type ==const.student:
-        return jsonify({"error": "yetkisizdd erişim"}), 403
+    if request.method == "OPTIONS":
+        return None
+    # Allowlist: only teachers and admins may use /teacher/* routes.
+    if getattr(g, "user_type", None) not in (const.teacher, const.admin):
+        return jsonify({"error": "yetkisiz erişim"}), 403
 
 
 """
@@ -45,7 +47,7 @@ def check_user_type():
 @education_blueprint.route("/firstdelluser", methods=["GET"])
 def first_dell_user():
     if g.user_type != const.admin:
-        return jsonify({"error": "lütfen admin hesabı ile giriş yapınız"}), 200
+        return jsonify({"error": "lütfen admin hesabı ile giriş yapınız"}), 403
 
     db = MongoDB(url=db_url, db_name=db_name)
     users_cursor = db.find_many(collection_name="users", query=None)
@@ -141,7 +143,7 @@ def add_user():
 @education_blueprint.route("/user/isactivate",methods=["POST"])
 def activated():
     if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
     content = request.get_json()
     user_name = content["user_name"]
@@ -168,7 +170,7 @@ def activated():
 @education_blueprint.route("/addteacher",methods=["POST"])
 def add_teacher():
     if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
     content = request.get_json()
     if content is None or "user_name" not in content or "password" not in content:
@@ -201,7 +203,7 @@ def add_teacher():
 @education_blueprint.route("/deluser", methods=["GET"])
 def del_user():
     if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
     name = request.headers.get("username").strip()
     print("silinen kulalnıcı ismi:", name)
@@ -222,7 +224,7 @@ def del_user():
 @education_blueprint.route("/alldeluser",methods=["DELETE"])
 def all_del_user():
     if g.user_type != const.admin:
-        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),200
+        return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
     db = MongoDB(url=db_url,db_name=db_name)
 
@@ -499,10 +501,12 @@ def add_task():
 @education_blueprint.route("/deltask", methods=["DELETE"])
 def del_task():
     task_id = request.headers.get("task_id")
-    print(task_id)
+    if not task_id:
+        return jsonify({"error":"Hatalı işlem"}), 400
     db = MongoDB(db_name=db_name, url=db_url) 
     
-    result = db.delete_one(collection_name="task", query={"task_id":task_id})    
+    # Users may only delete their own tasks.
+    db.delete_one(collection_name="task", query={"task_id":task_id,"who":g.user_name})
     return jsonify({"error": "silindi"}),200
 
 
