@@ -2,24 +2,18 @@ from flask import Blueprint, request, jsonify, g, current_app
 from db.db import MongoDB
 import config
 import const
-from db.db import MongoDB
-from jwtgenerate import JWT_Token
 from passwords import hash_password
 from model.model import Story,Egzersiz,Process,User,Video,Messages,Task,Teacher
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from werkzeug.utils import secure_filename
 from bson import ObjectId
 import os
 import uuid
-
-import time
 
 db_url = config.DATABASE_URL
 db_name = config.DATABASE_NAME
 SERVER_IP = config.SERVER_IP
 
-
-
-userId = 0
 
 
 education_blueprint = Blueprint('education_blueprint', __name__)
@@ -32,9 +26,47 @@ def _json_body():
 
 
 def _strip_private_fields(user):
-    for field in ("_id", "token", "password"):
+    for field in ("_id", "token", "password", "password_changed_at"):
         user.pop(field, None)
     return user
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _is_admin():
+    return g.user_type == const.admin
+
+
+def _parse_level(value):
+    """Level as a positive int (accepts digit strings), else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def _is_scalar(value):
+    # Plain values only: a dict here would let callers inject query
+    # operators such as {"$ne": ...} or {"$where": ...}.
+    return isinstance(value, (str, int, float, bool)) or value is None
+
+
+def _owns_student(db, user_name):
+    """Admins see every student; teachers only their own."""
+    if _is_admin():
+        return True
+    student = db.find_one(collection_name="users", query={"user_name": user_name, "user_type": const.student})
+    return isinstance(student, dict) and student.get("teacher_name") == g.user_name
+
+
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".m4v", ".ogg", ".ogv"}
+
+
+def _video_dir():
+    return current_app.static_folder
 
 @education_blueprint.before_request
 def check_user_type():
@@ -56,8 +88,10 @@ def first_dell_user():
         return jsonify({"error": "lütfen admin hesabı ile giriş yapınız"}), 403
 
     db = MongoDB(url=db_url, db_name=db_name)
-    users_cursor = db.find_many(collection_name="users", query=None)
+    # Only students expire; teachers and admins are never removed here.
+    users_cursor = db.find_many(collection_name="users", query={"user_type": const.student})
     users = [dict(user) for user in users_cursor]
+    users_cursor.close()
 
     # Şu anki tarihten bir yıl öncesine giden tarih
     one_year_ago = datetime.now() - timedelta(days=365)
@@ -66,9 +100,9 @@ def first_dell_user():
         registered = user.get("kayit_tarihi")
         if isinstance(registered, datetime) and registered < one_year_ago:
             user_name = user.get("user_name")
-            db.delete_one(collection_name="users", query={"user_name": user_name})
+            db.delete_one(collection_name="users", query={"user_name": user_name, "user_type": const.student})
+            db.delete_one(collection_name="process", query={"user_name": user_name})
 
-    users_cursor.close()
     return jsonify({"message": "Bir yılı geçen kullanıcılar başarıyla silindi"}), 200
     
     
@@ -88,7 +122,7 @@ def user():
         users_cursor.close()
         return jsonify(users), 200   
     
-    users_cursor = db.find_many(collection_name="users", query=None)
+    users_cursor = db.find_many(collection_name="users", query={})
     users = [dict(user) for user in users_cursor]
     
     for user in users:
@@ -103,16 +137,20 @@ def add_user():
     content = _json_body()
     if content is None or not isinstance(content.get("user_name"), str) or not isinstance(content.get("password"), str):
         return jsonify({"error": "Eksik bilgi"}), 400
-    if "name" not in content or "level" not in content:
+    if not isinstance(content.get("name"), str) or "level" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
     
     username = content["user_name"].strip()
     password = content["password"].strip()
     if not username or not password:
         return jsonify({"error": "Eksik bilgi"}), 400
-    name = content["name"]
+    name = content["name"].strip()
     phoneNumber = content.get("phone_number")
-    level = content["level"]
+    if phoneNumber is not None and not isinstance(phoneNumber, str):
+        return jsonify({"error": "Geçersiz telefon numarası"}), 400
+    level = _parse_level(content["level"])
+    if level is None:
+        return jsonify({"error": "Geçersiz level değeri"}), 400
     
     db = MongoDB(db_name=db_name, url=db_url)
     
@@ -120,8 +158,6 @@ def add_user():
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
-    token = JWT_Token()
-    userToken = token.generate_token(user_id=None,name=name,role=const.student,user_name=username,level=level)
     userType = const.student
     basari_puani = 0
     
@@ -140,11 +176,11 @@ def add_user():
 
     teacher_name = g.user_name
 
-    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=hash_password(password),phone_number=phoneNumber,user_name=username,user_type=userType,token=userToken,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0,last_seen_data=None).__dict__
+    usr = User(_id=new_id,basari_puani=basari_puani,kayit_tarihi=createdTime,password=hash_password(password),phone_number=phoneNumber,user_name=username,user_type=userType,token=None,name=name,level=level,activate=activated,teacher_name=teacher_name,count=0,last_seen_data=None).__dict__
     usr_proccess = Process(user_name=username,next_exercise=1,now_exercise=0,day="day1",next_day_date=newDate,okey=False,level=level).__dict__
     db.insert_one(collection_name="users",data=usr)
     db.insert_one(collection_name="process",data=usr_proccess)
-    return jsonify({"message":"kullanıcı eklendi","username": username,"token":userToken}), 200
+    return jsonify({"message":"kullanıcı eklendi","username": username}), 200
 
 @education_blueprint.route("/user/isactivate",methods=["POST"])
 def activated():
@@ -180,12 +216,12 @@ def add_teacher():
     content = _json_body()
     if content is None or not isinstance(content.get("user_name"), str) or not isinstance(content.get("password"), str):
         return jsonify({"error": "Eksik bilgi"}), 400
-    if not content["user_name"] or not content["password"] or "name" not in content or not isinstance(content.get("email"), str):
+    if not content["user_name"].strip() or not content["password"].strip() or not isinstance(content.get("name"), str) or not isinstance(content.get("email"), str):
         return jsonify({"error": "Eksik bilgi"}), 400
     
-    username = content["user_name"]
+    username = content["user_name"].strip()
     password = content["password"]
-    name = content["name"]
+    name = content["name"].strip()
     email = content["email"].strip()
     
     db = MongoDB(db_name=db_name, url=db_url)
@@ -194,16 +230,13 @@ def add_teacher():
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
-    token = JWT_Token()
-    userToken = token.generate_token_teacher(user_id=None,name=name,role=const.teacher,user_name=username)
-    
     new_id = ObjectId()
     userType = const.teacher
     
     createdTime = datetime.now()
-    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=hash_password(password),email=email,user_name=username,user_type=userType,token=userToken,name=name).__dict__
+    usr = Teacher(_id=new_id,kayit_tarihi=createdTime,password=hash_password(password),email=email,user_name=username,user_type=userType,token=None,name=name).__dict__
     db.insert_one(collection_name="users",data=usr)
-    return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username,"token":userToken}), 200
+    return jsonify({"message":"öğretmen başarılı bir şekilde eklendi","username": username}), 200
 
 
 @education_blueprint.route("/deluser", methods=["GET"])
@@ -216,12 +249,12 @@ def del_user():
     if name == "":
         return jsonify({"message": "Kullanıcı adı belirtilmemiş."}), 400
     
-    query = {"user_name": name}
     db = MongoDB(db_name=db_name, url=db_url)
-    deleted_user = db.delete_one("users", query=query)
-    deleted_process = db.delete_one("process", query=query)
+    # Admin accounts cannot be deleted through the API (avoids lock-out).
+    deleted_user = db.delete_one("users", query={"user_name": name, "user_type": {"$ne": const.admin}})
 
     if deleted_user :
+        db.delete_one("process", query={"user_name": name})
         return jsonify({"message": "Kullanıcı başarılı şekilde silindi."}), 200
     else:
         return jsonify({"error": "Kullanıcı bulunamadı."}), 404
@@ -233,9 +266,11 @@ def all_del_user():
     
     db = MongoDB(url=db_url,db_name=db_name)
 
-    db.delete_many(collection_name="users",query={})
+    # Admin accounts are kept so the system stays manageable.
+    deleted = db.delete_many(collection_name="users",query={"user_type": {"$ne": const.admin}})
+    db.delete_many(collection_name="process",query={})
     
-    return jsonify(),200
+    return jsonify({"deleted": deleted}),200
 
 @education_blueprint.route("/updateuser/<string:old_name>", methods=["POST"])
 def update_user(old_name):
@@ -266,11 +301,20 @@ def update_user(old_name):
         return jsonify({"error": "Eksik bilgi"}), 400
     if new_password and new_password.strip():
         new_values["password"] = hash_password(new_password)
+        # Invalidates tokens issued before this change (see auth middleware).
+        new_values["password_changed_at"] = _utcnow()
+    if name is not None and not isinstance(name, str):
+        return jsonify({"error": "Eksik bilgi"}), 400
+    if phone_number is not None and not isinstance(phone_number, str):
+        return jsonify({"error": "Geçersiz telefon numarası"}), 400
     if name:
         new_values["name"] = name
     if phone_number:
         new_values["phone_number"] = phone_number
-    if level:
+    if level not in (None, ""):
+        level = _parse_level(level)
+        if level is None:
+            return jsonify({"error": "Geçersiz level değeri"}), 400
         new_values["level"] = level
 
     if not new_values:
@@ -288,7 +332,8 @@ def update_user(old_name):
 @education_blueprint.route("/user/countuser",methods=["GET"])
 def count_user():
     db = MongoDB(url=db_url,db_name=db_name)
-    count_document = db.count_documents(collection_name="users",query={})
+    query = {} if _is_admin() else {"teacher_name": g.user_name}
+    count_document = db.count_documents(collection_name="users",query=query)
     
     return jsonify({"kullanici_sayisi":count_document})
     
@@ -325,12 +370,16 @@ def upload_video():
         current_app.logger.error("SERVER_IP is not configured")
         return jsonify({"error": "sunucu hatası"}), 500
 
-    unique_id = str(uuid.uuid4())
+    extension = os.path.splitext(video.filename)[1].lower()
+    if extension not in ALLOWED_VIDEO_EXTENSIONS:
+        return jsonify({"error": "desteklenmeyen video formatı"}), 400
 
     if video:
-        filename = video.filename 
-        name = unique_id
-        video.save(os.path.join("static", name))  
+        # Client filename is only stored as metadata, never used as a path.
+        filename = secure_filename(video.filename) or "video" + extension
+        name = str(uuid.uuid4()) + extension
+        os.makedirs(_video_dir(), exist_ok=True)
+        video.save(os.path.join(_video_dir(), name))
         url =  SERVER_IP+"static/"+name
         db = MongoDB(url=db_url,db_name=db_name)
         db.insert_one(collection_name="videos",data={
@@ -345,7 +394,7 @@ def upload_video():
 @education_blueprint.route("/videos",methods=["GET"])
 def videos():
     db = MongoDB(url=db_url, db_name=db_name)
-    videos_curser = db.find_many(collection_name="videos", query=None)
+    videos_curser = db.find_many(collection_name="videos", query={})
     
     videos = [dict(video) for video in videos_curser]
     for video in videos:
@@ -371,7 +420,8 @@ def get_video(name):
 def del_video():
     name = request.headers.get("name")
     
-    if not name:
+    # Names are server-generated; anything with a path component is invalid.
+    if not name or name != os.path.basename(name) or name in (".", ".."):
         return jsonify({"error": "Video adı belirtilmedi."}), 400
     
     db = MongoDB(url=db_url, db_name=db_name)
@@ -379,7 +429,7 @@ def del_video():
 
     if deleted_video == 1:
         # Dosya sisteminden videoyu sil
-        video_path = os.path.join("static", name)
+        video_path = os.path.join(_video_dir(), name)
         if os.path.exists(video_path):
             os.remove(video_path)
             return jsonify({"message": "Video başarıyla silindi."}), 200
@@ -407,13 +457,18 @@ def send_message():
     header = content["header"]
     messages = content["content"]
     user_name = content["user_name"]
+    if not all(isinstance(v, str) and v.strip() for v in (header, messages, user_name)):
+        return jsonify({"error":"Hatalı header"}), 400
+    
+    db = MongoDB(url=db_url, db_name=db_name)
+    # "all" is a broadcast; otherwise teachers may only message their own students.
+    if user_name != "all" and not _owns_student(db, user_name):
+        return jsonify({"error":"kullanıcı bulunamadı"}), 404
     
     
     current_datetime = datetime.now()
     current_date = current_datetime.date()
     current_time_str = current_datetime.strftime("%H:%M:%S")
-    
-    db = MongoDB(url=db_url, db_name=db_name)   
 
     data = Messages(header=header,sender=g.user_name, receiver=user_name, content=messages, cender_date=current_date, date=current_time_str).__dict__
     
@@ -425,11 +480,12 @@ def send_message():
 @education_blueprint.route("/messages", methods=["GET"])
 def message():
     db = MongoDB(url=db_url, db_name=db_name)
-    messages_cursor = db.find_many(collection_name="messages", query=None)
+    query = {} if _is_admin() else {"sender": g.user_name}
+    messages_cursor = db.find_many(collection_name="messages", query=query)
     messages = [dict(msg) for msg in messages_cursor]
     
     for msg in messages:
-        del msg['_id']
+        msg.pop('_id', None)
     
     messages_cursor.close()
     
@@ -446,7 +502,10 @@ def del_message():
 
     db = MongoDB(url=db_url, db_name=db_name)
 
-    res = db.delete_one(collection_name="messages", query={"header": header})
+    query = {"header": header}
+    if not _is_admin():
+        query["sender"] = g.user_name
+    res = db.delete_one(collection_name="messages", query=query)
 
     if res > 0:
         return jsonify({"message": "Mesaj başarıyla silindi"}), 200
@@ -469,7 +528,7 @@ def calendar():
     tasks = [dict(task) for task in task_cursor]
     
     for task in tasks:
-        del task['_id']
+        task.pop('_id', None)
     
     task_cursor.close()
     
@@ -503,8 +562,10 @@ def del_task():
     db = MongoDB(db_name=db_name, url=db_url) 
     
     # Users may only delete their own tasks.
-    db.delete_one(collection_name="task", query={"task_id":task_id,"who":g.user_name})
-    return jsonify({"error": "silindi"}),200
+    deleted = db.delete_one(collection_name="task", query={"task_id":task_id,"who":g.user_name})
+    if not deleted:
+        return jsonify({"error": "görev bulunamadı"}), 404
+    return jsonify({"message": "silindi"}),200
 
 
 
@@ -513,12 +574,25 @@ def del_task():
     """
 @education_blueprint.route("/getexercisedetails", methods=["POST"])
 def get_exercise():
+    content = _json_body()
+    user_name = content.get("user_name") if content else None
+    exercise_name = content.get("exercise_name") if content else None
+    if not isinstance(user_name, str) or not user_name:
+        return jsonify({"error": "Eksik bilgi"}), 400
+    if exercise_name is not None and not isinstance(exercise_name, str):
+        return jsonify({"error": "Eksik bilgi"}), 400
+
+    # Built from known fields only; the raw body used to be passed to
+    # MongoDB, allowing operator injection and reading any student's data.
+    query = {"user_name": user_name}
+    if exercise_name:
+        query["exercise_name"] = exercise_name
+
     try:
-        # JSON verisini alın
-        exercise_data = request.get_json()
-        
-        db = MongoDB(db_name=db_name, url=db_url) 
-        cursor = db.find_many(collection_name="after_exercise", query=exercise_data)
+        db = MongoDB(db_name=db_name, url=db_url)
+        if not _owns_student(db, user_name):
+            return jsonify({"error": "öğrenci bulunamadı"}), 404
+        cursor = db.find_many(collection_name="after_exercise", query=query)
         exercises = [dict(exercise) for exercise in cursor]
 
         # Her bir egzersiz verisinden '_id' alanını kaldırın
@@ -528,7 +602,7 @@ def get_exercise():
         # JSON yanıtı döndürün
         return jsonify(exercises), 200
 
-    except Exception as e:
+    except Exception:
         current_app.logger.exception("getexercisedetails failed")
         return jsonify({"error": "sunucu hatası"}), 500
 
@@ -550,8 +624,9 @@ def get_exercises():
     cursor = db.find_many(collection_name="exercise", query=query)
     exercises = [dict(exercise) for exercise in cursor]
         
+    cursor.close()
     for ex in exercises:
-        del ex['_id']
+        ex.pop('_id', None)
     
     return jsonify(exercises), 200
 
@@ -562,7 +637,10 @@ def select_text():
         return jsonify({"error": "Lütfen admin veya öğretmen hesabı ile giriş yapınız"}), 403
 
     content = _json_body()
-    if content is None:
+    if not content:
+        return jsonify({"error": "Eksik bilgi"}), 400
+    # Exact-match lookups on plain field values only (no query operators).
+    if not all(isinstance(k, str) and not k.startswith("$") and _is_scalar(v) for k, v in content.items()):
         return jsonify({"error": "Eksik bilgi"}), 400
     
     db = MongoDB(db_name=db_name, url=db_url)
@@ -591,11 +669,11 @@ def set_knowledge():
     try:
         content["id"] = str(uuid.uuid4())  # Add a unique ID to the content
         knowledge = Knowledge(**content)
-    except ValidationError as e:
-        return jsonify({"error": str(e)}), 400
+    except (ValidationError, TypeError):
+        return jsonify({"error": "Geçersiz bilgi"}), 400
 
     db = MongoDB(url=db_url, db_name=db_name)
-    res = db.insert_one(collection_name="knowledge", data=knowledge.dict())
+    res = db.insert_one(collection_name="knowledge", data=knowledge.model_dump())
 
     if res:
         return jsonify({"message": "Başarılı şekilde eklendi"}), 200
@@ -608,10 +686,13 @@ def set_publish():
     if g.user_type != const.admin:
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
-    content = request.get_json()
+    content = _json_body()
+    knowledge_id = content.get("id") if content else None
+    if not isinstance(knowledge_id, str) or not knowledge_id:
+        return jsonify({"error": "Eksik bilgi"}), 400
 
     db = MongoDB(url=db_url,db_name=db_name)
-    res = db.update_one(collection_name="knowledge",query=content,data={"publish":True})
+    res = db.update_one(collection_name="knowledge",query={"id": knowledge_id},data={"publish":True})
 
     if res==1:
         return jsonify({"message": "Faydalı  Bilgi Yayınlandı"}), 200
@@ -622,10 +703,13 @@ def set_not_publish():
     if g.user_type != const.admin:
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
-    content = request.get_json()
+    content = _json_body()
+    knowledge_id = content.get("id") if content else None
+    if not isinstance(knowledge_id, str) or not knowledge_id:
+        return jsonify({"error": "Eksik bilgi"}), 400
 
     db = MongoDB(url=db_url,db_name=db_name)
-    res = db.update_one(collection_name="knowledge",query=content,data={"publish":False})
+    res = db.update_one(collection_name="knowledge",query={"id": knowledge_id},data={"publish":False})
 
     
 
@@ -656,14 +740,14 @@ def delete_knowledge():
 
     id = request.headers.get("head")
     if not id:
-        return jsonify({"error":"internal error"}),500
+        return jsonify({"error":"Eksik bilgi"}),400
     db = MongoDB(url=db_url, db_name=db_name)
     res = db.delete_one(collection_name="knowledge",query={"id":id})
     
     if res==1:
         return jsonify({"message":"başarılı bir şekilde silindi"}),200
     else:
-        return jsonify({"error":"hata"}),500
+        return jsonify({"error":"bulunamadı"}),404
     
     
     

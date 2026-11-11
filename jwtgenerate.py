@@ -11,13 +11,14 @@ class JWT_Token():
     algorithm = "HS256"
 
     def generate_token(self, user_id, role, name, user_name, level):
-        token_exp = datetime.now(timezone.utc) + TOKEN_LIFETIME
-        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, "level": level, 'user_name': user_name, 'exp': token_exp}, self.secret_key, algorithm=self.algorithm)
+        now = datetime.now(timezone.utc)
+        # "iat" lets the auth middleware reject tokens issued before a password change.
+        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, "level": level, 'user_name': user_name, 'iat': now, 'exp': now + TOKEN_LIFETIME}, self.secret_key, algorithm=self.algorithm)
         return token
 
     def generate_token_teacher(self, user_id, role, name, user_name):
-        token_exp = datetime.now(timezone.utc) + TOKEN_LIFETIME
-        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, 'user_name': user_name, 'exp': token_exp}, self.secret_key, algorithm=self.algorithm)
+        now = datetime.now(timezone.utc)
+        token = jwt.encode({'user_id': user_id, 'role': role, "name": name, 'user_name': user_name, 'iat': now, 'exp': now + TOKEN_LIFETIME}, self.secret_key, algorithm=self.algorithm)
         return token
 
     def verify_token(self, token):

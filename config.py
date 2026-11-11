@@ -49,3 +49,11 @@ SERVER_IP = _get("SERVER_IP")
 DEBUG = (_get("FLASK_DEBUG", "false") or "").lower() in ("1", "true", "yes", "on")
 HOST = _get("HOST", "127.0.0.1")
 PORT = int(_get("PORT", "5000"))
+
+# Largest accepted request body (video uploads included), in megabytes.
+MAX_CONTENT_LENGTH = int(_get("MAX_UPLOAD_MB", "200")) * 1024 * 1024
+
+# Number of trusted reverse proxies in front of the app (nginx, load
+# balancer...). 0 means requests come straight from clients. Needed for
+# correct client IPs in rate limiting; never set higher than the real count.
+TRUSTED_PROXY_COUNT = int(_get("TRUSTED_PROXY_COUNT", "0"))

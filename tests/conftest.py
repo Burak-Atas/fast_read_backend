@@ -45,10 +45,19 @@ def client(mongo):
 
 
 @pytest.fixture
-def student_token():
+def student_token(mongo):
+    mongo.users.insert_one({"user_name": "ali", "user_type": const.student, "activate": True,
+                            "level": 1, "teacher_name": "teacher1", "password": "x"})
     return JWT_Token().generate_token(user_id=None, role=const.student, name="Ali", user_name="ali", level=1)
 
 
 @pytest.fixture
-def admin_token():
+def admin_token(mongo):
+    mongo.users.insert_one({"user_name": "admin", "user_type": const.admin, "password": "x"})
     return JWT_Token().generate_token_teacher(user_id=None, role=const.admin, name="Admin", user_name="admin")
+
+
+@pytest.fixture
+def teacher_token(mongo):
+    mongo.users.insert_one({"user_name": "teacher1", "user_type": const.teacher, "password": "x"})
+    return JWT_Token().generate_token_teacher(user_id=None, role=const.teacher, name="T", user_name="teacher1")

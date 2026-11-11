@@ -1,4 +1,4 @@
-from flask import Blueprint,request,jsonify,g
+from flask import Blueprint,request,jsonify,g,Response
 
 student_blueprint = Blueprint('student', __name__)
 from db.db import MongoDB
@@ -15,13 +15,18 @@ db_name = config.DATABASE_NAME
 
 
 db = MongoDB(url=db_url, db_name=db_name)
-len_exercise = db.count_documents("exercise",query={})
 
 
+def total_exercises():
+    # Counted per call: a module-level count queried the DB at import time
+    # and went stale when exercises were added.
+    return db.count_documents("exercise",query={})
 
-def len_exercises(day):
-    exercises = db.find_one("days",query={"day":day})
-    return len(exercises["exercise"])
+
+def _safe_document(content):
+    """Drop keys MongoDB could interpret as operators or paths."""
+    return {k: v for k, v in content.items()
+            if isinstance(k, str) and k and not k.startswith("$") and "." not in k}
 
 def _student_level():
     """Level from the student's token as int, or None if missing/invalid."""
@@ -99,7 +104,7 @@ def gune_ait_egzersiz(day):
         if day_digits[0]==process_digits[0]:
             return jsonify({"egzersiz": days["exercise"],"order":process["now_exercise"],"next_exercies":process["next_exercise"]}), 200
         elif day_digits[0]<=process_digits[0]:
-            return jsonify({"egzersiz": days["exercise"],"order":len_exercise}), 200
+            return jsonify({"egzersiz": days["exercise"],"order":total_exercises()}), 200
             
     elif day_digits[1] > process_digits[1]: 
         return jsonify({"error":"tamamlanması gereken gün : "+process["day"],"egzersiz":days["exercise"],"order":-1})
@@ -152,9 +157,9 @@ def egzersiz(day,name):
         return jsonify({"error":"tamamlanması gereken gün : "+control["day"]})
     
     
-    exercise = control.get("now_exercise", 0)
-    if exercise>=len_exercise:
-        now_exerscise=db.find_one(collection_name="exercise",query={"name":name})
+    exercise = control.get("now_exercise") or 0
+    if exercise>=total_exercises():
+        now_exerscise=db.find_one(collection_name="exercise",query={"name":name,"level":level})
         if type(now_exerscise)!=dict:
             return jsonify({"error":"egzersiz bulunamadı"}),400
         data = now_exerscise["data"]
@@ -258,6 +263,7 @@ def egzersiz_bitti(day,name):
     if level is None:
         return jsonify({"error":"tekrar giriş yapınız"}),401
 
+    content = _safe_document(content)
     content.pop("_id", None)
     content["user_name"]=user_name
     content["exercise_name"]=name
@@ -289,10 +295,10 @@ def egzersiz_bitti(day,name):
     dnd = find_exercise(exercises,name,now_exercise)
 
     if dnd:
-        now_exercise = process.get("next_exercise") 
+        now_exercise = process.get("next_exercise") or 1
         new_next_exercise = now_exercise + 1
         db.update_one(collection_name="process", query={"user_name": user_name}, data={"next_exercise": new_next_exercise, "now_exercise": now_exercise})
-        if process["okey"]==False:
+        if not process.get("okey"):
             if now_exercise>=len_day_exercise:
                 found_user = db.find_one(collection_name="users",query={"user_name": user_name}) 
                 if not isinstance(found_user, dict):
@@ -305,7 +311,7 @@ def egzersiz_bitti(day,name):
                 return jsonify({"message":"tüm egzersizleri başarılı şeklilde tamamladınız"}),200
             db.insert_one(collection_name="after_exercise",data=content)
             return jsonify({"message":"sıradaki egzersize geçebilirsinz"}),200        
-        return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + process["next_day_date"]}), 200 
+        return jsonify({"message": "Tüm egzersizleri başarılı bir şekilde tamamladınız. Gelecek gün: " + str(process.get("next_day_date", ""))}), 200 
     return jsonify({"message":"lütfen kaldığınız egzersizi tamamlayın"}) ,400 
     
     """
@@ -366,7 +372,9 @@ def all_message():
         # Convert ObjectId to string for each message
         for message in messages:
             message['_id'] = str(message['_id'])
-        return json_util.dumps(messages), 200
+        # Explicit JSON type: a bare string response is served as text/html,
+        # letting message content run as script if the URL is opened directly.
+        return Response(json_util.dumps(messages), status=200, mimetype="application/json")
     else:
         return jsonify({"message": "Henüz bir mesajınız yok"}), 404
 
