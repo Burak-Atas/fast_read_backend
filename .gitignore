@@ -2,5 +2,7 @@ venv
 Dockerfile
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
-static/
+# Local environment (secrets). Use .env.example as a template.
+.env
