@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, current_app
 from db.db import MongoDB
 import config
 import const
@@ -69,7 +69,6 @@ def first_dell_user():
 @education_blueprint.route("/user", methods=["GET"])
 def user():
     db = MongoDB(url=db_url, db_name=db_name)
-    print("atas",g.user_type)
     
     if g.user_type == const.teacher:
         users_cursor = db.find_many(collection_name="users", query={"teacher_name":g.user_name})
@@ -78,7 +77,6 @@ def user():
         for user in users:
             _strip_private_fields(user)
         
-        print(users)
         
         users_cursor.close()
         users_cursor.close()
@@ -99,7 +97,6 @@ def add_user():
     content = request.get_json()
     if content is None or "user_name" not in content or "password" not in content:
         return jsonify({"error": "Eksik bilgi"}), 400
-    print(content)
     
     username = content["user_name"].strip()
     password = content["password"].strip()
@@ -110,7 +107,6 @@ def add_user():
     db = MongoDB(db_name=db_name, url=db_url)
     
     users = db.find_one(collection_name="users",query={"user_name":username})
-    print(users)
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
@@ -147,7 +143,6 @@ def activated():
     
     content = request.get_json()
     user_name = content["user_name"]
-    print(user_name)
 
     db = MongoDB(db_name=db_name, url=db_url)
     users = db.find_one(collection_name="users",query={"user_name":user_name})
@@ -155,7 +150,6 @@ def activated():
     if type(users)!=dict:
         return jsonify({"error": "kullanıcı_adı  bulunamadı"}), 400
     
-    print(users["activate"])
     
     if users["activate"]=="True":
         return jsonify({"message":"kullanıcı zaten aktif"}),200
@@ -163,7 +157,6 @@ def activated():
     activate = True
     
     result = db.update_one(collection_name="users",query={"user_name":user_name},data={"activate":activate})
-    print(result)
     
     return jsonify({"message":"işlem başarılı"}),200
 
@@ -184,7 +177,6 @@ def add_teacher():
     db = MongoDB(db_name=db_name, url=db_url)
     
     users = db.find_one(collection_name="users",query={"user_name":username})
-    print(users)
     if type(users)==dict:
         return jsonify({"error": "kullanıcı_adı  zaten  kayıtlı"}), 400
     
@@ -206,7 +198,6 @@ def del_user():
         return jsonify({"error":"lütfen admin hesabı ile giriş yapınız"}),403
     
     name = request.headers.get("username").strip()
-    print("silinen kulalnıcı ismi:", name)
     
     if name is None or name == "":
         return jsonify({"message": "Kullanıcı adı belirtilmemiş."}), 400
@@ -248,9 +239,6 @@ def update_user(old_name):
     level = content.get("level")
     
     query = {"user_name": old_name}
-    print(old_name)
-    print("old_name",old_name)
-    print(name)
     
     new_values = {}
 
@@ -273,11 +261,9 @@ def update_user(old_name):
     if not new_values:
         return jsonify({"error": "Güncellenecek bilgi bulunamadı"}), 400
     
-    print("new,values",new_values)
     db = MongoDB(db_name=db_name, url=db_url)
     updated_user = db.update_one(collection_name="users", query=query, data=new_values)
   
-    print("update_user",updated_user)
     if updated_user==1:
         return jsonify({"message": "Kullanıcı başarılı şekilde güncellendi"}), 200
     else:
@@ -400,7 +386,6 @@ def del_video():
 @education_blueprint.route("/sendmessage",methods=["POST"])
 def send_message():
     content = request.get_json()
-    print(content)
     if "content" not in content or "header" not in content:
         return jsonify({"error":"Hatalı header"}), 400
     
@@ -441,7 +426,6 @@ def message():
 @education_blueprint.route("/delmessage", methods=["DELETE"])
 def del_message():
     header = request.headers.get("header")
-    print(header)
     if header == "":
         return jsonify({"error": "Hatalı header"}), 400
 
@@ -467,7 +451,6 @@ def del_message():
 def calendar():
     db = MongoDB(db_name=db_name, url=db_url) 
     task_cursor = db.find_many(collection_name="task", query={"who":g.user_name})
-    print(g.user_name)
     tasks = [dict(task) for task in task_cursor]
     
     for task in tasks:
@@ -481,7 +464,6 @@ def calendar():
 @education_blueprint.route("/addtask",methods=["POST"])
 def add_task():
     content = request.get_json()
-    print(content)
     if "content" not in content or "date" not in content:
         return jsonify({"error":"Hatalı işlem"}), 400
     
@@ -532,15 +514,14 @@ def get_exercise():
         return jsonify(exercises), 200
 
     except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("getexercisedetails failed")
+        return jsonify({"error": "sunucu hatası"}), 500
 
 
 
 @education_blueprint.route("/getexercises", methods=["GET"])
 def get_exercises():
     level = request.args.get('level')
-    print("deneme elvei",level)
     try:
         level = int(level) if level is not None else None  # level parametresini int yap
     except ValueError:
@@ -607,12 +588,10 @@ def set_publish():
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
     content = request.get_json()
-    print(content)
 
     db = MongoDB(url=db_url,db_name=db_name)
     res = db.update_one(collection_name="knowledge",query=content,data={"publish":True})
 
-    print(res)
     if res==1:
         return jsonify({"message": "Faydalı  Bilgi Yayınlandı"}), 200
     else:
@@ -623,12 +602,10 @@ def set_not_publish():
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
     content = request.get_json()
-    print(content)
 
     db = MongoDB(url=db_url,db_name=db_name)
     res = db.update_one(collection_name="knowledge",query=content,data={"publish":False})
 
-    print(res)
     
 
     if res==1:
@@ -657,9 +634,6 @@ def delete_knowledge():
         return jsonify({"error": "Lütfen admin hesabı ile giriş yapınız"}), 403
 
     id = request.headers.get("head")
-    print(id)
-    print(id)
-    print(request.headers)
     if id == "":
         return jsonify({"error":"internal error"}),500
     db = MongoDB(url=db_url, db_name=db_name)
